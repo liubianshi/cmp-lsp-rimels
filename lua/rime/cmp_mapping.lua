@@ -1,12 +1,13 @@
-local cmp = require('cmp')
-local lsp_kinds = require("cmp.types").lsp.CompletionItemKind
-local utils = require "rime.utils"
+local cmp         = require "cmp"
+local lsp_kinds   = require("cmp.types").lsp.CompletionItemKind
+local utils       = require "rime.utils"
 local auto_toggle = require "rime.auto_toggle"
 
 local input_method_take_effect = function(entry, probes_ignored)
   if not entry then
     return false
   end
+
   if
     entry.source.name == "nvim_lsp"
     and entry.source.source.client.name == "rime_ls"
@@ -31,12 +32,11 @@ end
 
 local feedkey = function(key, mode)
   vim.api.nvim_feedkeys(
-      vim.api.nvim_replace_termcodes(key, true, true, true),
-      mode,
-      true
+    vim.api.nvim_replace_termcodes(key, true, true, true),
+    mode,
+    true
   )
 end
-
 
 local M = {}
 
@@ -61,7 +61,11 @@ for numkey = 1, 9 do
       return fallback()
     else
       local first_entry = cmp.core.view:get_first_entry()
-      if not input_method_take_effect(first_entry, { "probe_punctuation_after_half_symbol" })
+      if
+        not input_method_take_effect(
+          first_entry,
+          { "probe_punctuation_after_half_symbol" }
+        )
       then
         return fallback()
       end
@@ -114,7 +118,7 @@ M["<CR>"] = cmp.mapping(function(fallback)
     return (fallback())
   end
 
-  if input_method_take_effect(entry, 'all') then
+  if input_method_take_effect(entry, "all") then
     cmp.abort()
     vim.fn.feedkeys " "
   elseif select_entry then

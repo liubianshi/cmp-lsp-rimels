@@ -1,14 +1,8 @@
-local utils = require "rime/utils"
-local probes = require "rime/probes"
-local default_opts = require "rime/default_opts"
-local lspconfig = require "lspconfig"
-local configs = require "lspconfig.configs"
 local cmp_ok, cmp = pcall(require, "cmp")
 if not cmp_ok then
   vim.notify("nvim-cmp not installed", vim.log.levels.ERROR)
   error()
 end
-local cmp_keymaps = require('rime.cmp_keymaps')
 
 -- nvim-cmp supports additional completion capabilities, so broadcast that to servers
 local capabilities = vim.lsp.protocol.make_client_capabilities()
@@ -16,6 +10,13 @@ local status_ok, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
 if status_ok then
   capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
 end
+
+local cmp_keymaps  = require "rime.cmp_keymaps"
+local utils        = require "rime.utils"
+local probes       = require "rime.probes"
+local default_opts = require "rime.default_opts"
+local lspconfig    = require "lspconfig"
+local configs      = require "lspconfig.configs"
 
 local M = {}
 
@@ -47,7 +48,7 @@ function M.setup(opts)
 
   lspconfig.rime_ls.setup {
     init_options = {
-      enabled = utils.rime_enabled(),
+      enabled = utils.global_rime_enabled(),
       shared_data_dir = opts.shared_data_dir,
       user_data_dir = opts.rime_user_dir,
       log_dir = opts.rime_user_dir .. "/log",
@@ -58,24 +59,28 @@ function M.setup(opts)
     on_attach = rime_on_attach,
     capabilities = capabilities,
   }
+
+  -- Configure how various keys respond
   cmp.setup { mapping = cmp.mapping.preset.insert(cmp_keymaps) }
 
-  vim.keymap.set({"i"}, opts.keys.start, function()
-    vim.cmd("stopinsert")
+  vim.keymap.set({ "i" }, opts.keys.start, function()
+    vim.cmd "stopinsert"
     local bufnr = vim.api.nvim_get_current_buf()
     local client = utils.buf_get_rime_ls_client(bufnr)
 
     if not client then
-        client = utils.buf_attach_rime_ls(bufnr)
+      client = utils.buf_attach_rime_ls(bufnr)
     end
-    if not utils.rime_enabled() then
-        utils.toggle_rime(client)
+    if not utils.global_rime_enabled() then
+      utils.toggle_rime(client)
     end
     if not utils.buf_rime_enabled() then
       utils.buf_toggle_rime(bufnr, false)
     end
     vim.fn.feedkeys("a", "n")
-  end, {silent = true, noremap = true, desc = "Toggle Input Method"})
+  end, { silent = true, noremap = true, desc = "Toggle Input Method" })
+
+  lspconfig.rime_ls.launch()
 end
 
 function M.get_probe_names()
@@ -85,6 +90,5 @@ function M.get_probe_names()
   end
   return probe_names
 end
-
 
 return M
