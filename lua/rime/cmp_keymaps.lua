@@ -2,6 +2,7 @@ local cmp         = require "cmp"
 local lsp_kinds   = require("cmp.types").lsp.CompletionItemKind
 local utils       = require "rime.utils"
 local auto_toggle = require "rime.auto_toggle"
+local probes      = require "rime.probes"
 
 local input_method_take_effect = function(entry, probes_ignored)
   if not entry then
@@ -11,7 +12,7 @@ local input_method_take_effect = function(entry, probes_ignored)
   if
     entry.source.name == "nvim_lsp"
     and entry.source.source.client.name == "rime_ls"
-    and utils.probes_all_passed(probes_ignored)
+    and probes.probes_all_passed(probes_ignored)
   then
     return true
   else

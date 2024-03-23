@@ -1,7 +1,6 @@
-local probes = require('rime.probes')
 local M = {}
 local global_rime_status =  "nvim_rime#global_rime_enabled"
-local buffer_rime_status =  "nvim_rime#buf_rime_enabled"
+local buffer_rime_status =  "buf_rime_enabled"
 
 function M.buf_attach_rime_ls(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
@@ -38,13 +37,12 @@ function M.buf_get_rime_ls_client(bufnr)
 end
 
 function M.buf_rime_enabled()
-  return vim.api.nvim_buf_get_var(0, buffer_rime_status) == true
+  local exist,status = pcall(vim.api.nvim_buf_get_var, 0, buffer_rime_status)
+  return (exist and status)
 end
 
-function M.buf_toggle_rime(bufnr, adjust_globl_status)
-  adjust_globl_status = adjust_globl_status or true
-
-  if M.buf_rime_enabled ~= M.global_rime_enabled() or not adjust_globl_status
+function M.buf_toggle_rime(bufnr, buf_only)
+  if M.buf_rime_enabled() ~= M.global_rime_enabled() or buf_only 
   then
     vim.api.nvim_buf_set_var(0, buffer_rime_status, not M.buf_rime_enabled())
     return
@@ -63,7 +61,7 @@ function M.buf_toggle_rime(bufnr, adjust_globl_status)
   end
 
   M.toggle_rime(client)
-  M.buf_toggle_rime(bufnr, false)
+  M.buf_toggle_rime(bufnr, true)
 end
 
 function M.create_autocmd_toggle_rime_according_buffer_status(client)
@@ -114,8 +112,8 @@ function M.create_inoremap_start_rime(client, key)
     if not M.global_rime_enabled() then
       M.toggle_rime(client)
     end
-    if not M.buf_rime_enabled then
-      M.buf_toggle_rime_ls_status()
+    if not M.buf_rime_enabled() then
+      M.buf_toggle_rime(0, true)
     end
     vim.fn.feedkeys("a", "n")
   end, { desc = "Start Chinese Input Method", noremap = true, buffer = true })
@@ -131,7 +129,7 @@ function M.create_inoremap_stop_rime(client, key)
         M.toggle_rime(client)
       end
       if M.buf_rime_enabled() then
-        M.buf_toggle_rime_ls_status()
+        M.buf_toggle_rime(0, true)
       end
       vim.fn.feedkeys("a", "n")
     end,
@@ -160,7 +158,7 @@ function M.get_chars_before_cursor(colnums_before, length)
   if colnums_before < length then
     return nil
   end
-  local content_before = M.get_line_before(colnums_before - length)
+  local content_before = M.get_content_before_cursor(colnums_before - length)
   if not content_before then
     return nil
   end
@@ -177,17 +175,11 @@ function M.get_content_before_cursor(shift)
   return line_content:sub(1, col - shift)
 end
 
-function M.probes_all_passed(probes_ignored)
-  if probes_ignored and probes_ignored == "all" then
-    return true
-  end
-  for name, probe in pairs(probes) do
-    if vim.fn.index(probes_ignored, name) < 0 and probe() then
-      return false
-    end
-  end
-  return true
+function M.global_rime_enabled()
+  local exist,status = pcall(vim.api.nvim_get_var, global_rime_status)
+  return (exist and status)
 end
+
 
 function M.in_english_environment()
   local info = vim.inspect_pos()
@@ -205,12 +197,23 @@ function M.in_english_environment()
     return englist_env
   end
 
+  -- pandoc highlight
   for _, syn in ipairs(info.syntax) do
+    local hl = syn.hl_group
+    local hl_link = syn.hl_group_link
     if
-      syn.hl_group_link:match "MathBlock"
-      or syn.hl_group_link:match "NoFormatted"
+      hl == "pandocLaTeXInlineMath" or
+      hl == "pandocNoFormatted" or
+      hl == "pandocOperator" or
+      hl == "pandocLaTeXMathBlock"
     then
       return true
+    elseif hl == "pandocDelimitedCodeBlock"
+    then
+      englist_env = true
+    elseif hl_link == "Comment"
+    then
+      return false
     end
   end
   return englist_env
@@ -224,9 +227,6 @@ function M.is_typing_english(shift)
   return content_before:match "%s[%w%p]+$"
 end
 
-function M.global_rime_enabled()
-  return vim.api.nvim_get_var(global_rime_status) == true
-end
 
 function M.toggle_rime(client)
   client = client or M.buf_get_rime_ls_client()

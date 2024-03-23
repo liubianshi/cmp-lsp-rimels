@@ -13,7 +13,6 @@ end
 
 local cmp_keymaps  = require "rime.cmp_keymaps"
 local utils        = require "rime.utils"
-local probes       = require "rime.probes"
 local default_opts = require "rime.default_opts"
 local lspconfig    = require "lspconfig"
 local configs      = require "lspconfig.configs"
@@ -48,6 +47,7 @@ function M.setup(opts)
 
   lspconfig.rime_ls.setup {
     init_options = {
+
       enabled = utils.global_rime_enabled(),
       shared_data_dir = opts.shared_data_dir,
       user_data_dir = opts.rime_user_dir,
@@ -69,26 +69,21 @@ function M.setup(opts)
     local client = utils.buf_get_rime_ls_client(bufnr)
 
     if not client then
-      client = utils.buf_attach_rime_ls(bufnr)
+      utils.buf_attach_rime_ls(bufnr)
+      client = utils.buf_get_rime_ls_client(bufnr)
     end
+
     if not utils.global_rime_enabled() then
       utils.toggle_rime(client)
     end
+
     if not utils.buf_rime_enabled() then
-      utils.buf_toggle_rime(bufnr, false)
+      utils.buf_toggle_rime(bufnr, true)
     end
     vim.fn.feedkeys("a", "n")
   end, { silent = true, noremap = true, desc = "Toggle Input Method" })
 
   lspconfig.rime_ls.launch()
-end
-
-function M.get_probe_names()
-  local probe_names = {}
-  for name, _ in pairs(probes) do
-    table.insert(probe_names, name)
-  end
-  return probe_names
 end
 
 return M

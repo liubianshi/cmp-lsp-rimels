@@ -33,7 +33,7 @@ end
 
 function M.space()
   if not utils.buf_rime_enabled() or utils.in_english_environment() then
-    return rc.NOT_TOGGLE
+    return rc.not_toggle
   end
 
   -- 行首输入空格或输入连续空格时不考虑输入法切换
