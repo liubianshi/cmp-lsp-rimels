@@ -11,16 +11,25 @@ if status_ok then
   capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
 end
 
-local cmp_keymaps  = require "rime.cmp_keymaps"
 local utils        = require "rime.utils"
 local default_opts = require "rime.default_opts"
 local lspconfig    = require "lspconfig"
 local configs      = require "lspconfig.configs"
+local probes       = require "rime.probes"
+local cmp_keymaps  = require("rime.cmp_keymaps")
 
 local M = {}
 
 function M.setup(opts)
   opts = vim.tbl_extend("force", default_opts, opts or {})
+  opts.probes = {}
+  for name,probe in pairs(probes) do
+    if vim.fn.index(opts.probes_ignored, name) < 0 then
+      opts.probes[name] = probe
+    end
+  end
+  opts.probes = vim.tbl_extend("force", opts.probes, opts.probes_add)
+
 
   local rime_on_attach = function(client, _)
     utils.create_command_toggle_rime(client)
@@ -47,21 +56,19 @@ function M.setup(opts)
 
   lspconfig.rime_ls.setup {
     init_options = {
-
       enabled = utils.global_rime_enabled(),
       shared_data_dir = opts.shared_data_dir,
       user_data_dir = opts.rime_user_dir,
       log_dir = opts.rime_user_dir .. "/log",
       max_candidates = opts.max_candidates,
-      trigger_characters = opts.trigger_characters,
-      schema_trigger_character = opts.schema_trigger_character,
     },
     on_attach = rime_on_attach,
     capabilities = capabilities,
   }
 
   -- Configure how various keys respond
-  cmp.setup { mapping = cmp.mapping.preset.insert(cmp_keymaps) }
+  local keymaps = cmp_keymaps:set_probes(opts.probes).keymaps
+  cmp.setup { mapping = cmp.mapping.preset.insert(keymaps) }
 
   vim.keymap.set({ "i" }, opts.keys.start, function()
     vim.cmd "stopinsert"
@@ -84,6 +91,14 @@ function M.setup(opts)
   end, { silent = true, noremap = true, desc = "Toggle Input Method" })
 
   lspconfig.rime_ls.launch()
+end
+
+function M.get_probe_names()
+  local probe_names = {}
+  for name, _ in pairs(probes) do
+    table.insert(probe_names, name)
+  end
+  return probe_names
 end
 
 return M

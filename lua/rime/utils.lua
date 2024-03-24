@@ -36,8 +36,9 @@ function M.buf_get_rime_ls_client(bufnr)
   return nil
 end
 
-function M.buf_rime_enabled()
-  local exist,status = pcall(vim.api.nvim_buf_get_var, 0, buffer_rime_status)
+function M.buf_rime_enabled(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local exist,status = pcall(vim.api.nvim_buf_get_var, bufnr, buffer_rime_status)
   return (exist and status)
 end
 
@@ -68,14 +69,17 @@ function M.create_autocmd_toggle_rime_according_buffer_status(client)
   -- Close rime_ls when opening a new window
   local rime_group =
     vim.api.nvim_create_augroup("RimeAutoToggle", { clear = true })
-  vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter" }, {
+  vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter", "BufRead"}, {
     pattern = "*",
     group = rime_group,
-    callback = function()
-      if
-        (M.global_rime_enabled() and not M.buf_rime_enabled())
-        or (not M.global_rime_enabled and M.buf_rime_enabled())
-      then
+    callback = function(ev)
+      local bufnr = ev.buf
+      if not M.buf_get_rime_ls_client(bufnr) then
+        return
+      end
+      local buf_rime_enabled = M.buf_rime_enabled(bufnr)
+      local global_rime_enabled = M.global_rime_enabled()
+      if (buf_rime_enabled ~= global_rime_enabled) then
         M.toggle_rime(client)
       end
     end,
@@ -93,9 +97,10 @@ end
 
 function M.create_command_toggle_rime(client)
   vim.api.nvim_create_user_command("ToggleRime", function(opt)
+    local bufnr = vim.api.nvim_get_current_buf()
     local args = opt.args
     if
-      not args
+      (not args or args == "")
       or (args == "on" and not M.global_rime_enabled())
       or (args == "off" and M.global_rime_enabled())
     then
@@ -103,6 +108,7 @@ function M.create_command_toggle_rime(client)
     elseif args == "start" and not M.global_rime_enabled() then
       M.toggle_rime(client)
     end
+    M.buf_toggle_rime(bufnr, true)
   end, { nargs = "?", desc = "Toggle Rime" })
 end
 
@@ -226,7 +232,6 @@ function M.is_typing_english(shift)
   end
   return content_before:match "%s[%w%p]+$"
 end
-
 
 function M.toggle_rime(client)
   client = client or M.buf_get_rime_ls_client()

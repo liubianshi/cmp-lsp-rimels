@@ -2,34 +2,6 @@ local cmp         = require "cmp"
 local lsp_kinds   = require("cmp.types").lsp.CompletionItemKind
 local utils       = require "rime.utils"
 local auto_toggle = require "rime.auto_toggle"
-local probes      = require "rime.probes"
-
-local input_method_take_effect = function(entry, probes_ignored)
-  if not entry then
-    return false
-  end
-
-  if
-    entry.source.name == "nvim_lsp"
-    and entry.source.source.client.name == "rime_ls"
-    and probes.probes_all_passed(probes_ignored)
-  then
-    return true
-  else
-    return false
-  end
-end
-
-local rimels_auto_upload = function(entries)
-  if #entries == 1 then
-    if input_method_take_effect(entries[1]) then
-      cmp.confirm {
-        behavior = cmp.ConfirmBehavior.Insert,
-        select = true,
-      }
-    end
-  end
-end
 
 local feedkey = function(key, mode)
   vim.api.nvim_feedkeys(
@@ -39,31 +11,80 @@ local feedkey = function(key, mode)
   )
 end
 
-local M = {}
+
+local M = {keymaps = {}}
+function M:set_probes(probes)
+  self.passed_all_probes = function(probes_ignored)
+    if probes_ignored and probes_ignored == "all" then
+      return true
+    end
+    probes_ignored = probes_ignored or {}
+    for name, probe in pairs(probes) do
+      if vim.fn.index(probes_ignored, name) < 0 and probe() then
+        return false
+      end
+    end
+    return true
+  end
+  return self
+end
+
+function M.input_method_take_effect(entry, probes_ignored)
+  if not entry then
+    return false
+  end
+
+  if not M.passed_all_probes then
+    vim.notify(
+      "Need rume require('rime.cmp_keympas').set_probes() fisrt",
+      vim.log.levels.ERROR
+    )
+  end
+  if
+    entry.source.name == "nvim_lsp"
+    and entry.source.source.client.name == "rime_ls"
+    and M.passed_all_probes(probes_ignored)
+  then
+    return true
+  else
+    return false
+  end
+end
+
+function M.rimels_auto_upload(entries)
+  if #entries == 1 then
+    if M.input_method_take_effect(entries[1]) then
+      cmp.confirm {
+        behavior = cmp.ConfirmBehavior.Insert,
+        select = true,
+      }
+    end
+  end
+end
 
 -- number --------------------------------------------------------------- {{{3
-M["0"] = cmp.mapping(function(fallback)
+M.keymaps["0"] = cmp.mapping(function(fallback)
   if not cmp.visible() or not utils.buf_rime_enabled() then
     return fallback()
   end
 
   local first_entry = cmp.core.view:get_first_entry()
-  if not input_method_take_effect(first_entry) then
+  if not M.input_method_take_effect(first_entry) then
     return fallback()
   end
 
-  rimels_auto_upload(cmp.core.view:get_entries())
+  M.rimels_auto_upload(cmp.core.view:get_entries())
 end, { "i" })
 
 for numkey = 1, 9 do
   local numkey_str = tostring(numkey)
-  M[numkey_str] = cmp.mapping(function(fallback)
+  M.keymaps[numkey_str] = cmp.mapping(function(fallback)
     if not cmp.visible() or not utils.buf_rime_enabled() then
       return fallback()
     else
       local first_entry = cmp.core.view:get_first_entry()
       if
-        not input_method_take_effect(
+        not M.input_method_take_effect(
           first_entry,
           { "probe_punctuation_after_half_symbol" }
         )
@@ -79,7 +100,7 @@ for numkey = 1, 9 do
 end
 
 -- <Space> -------------------------------------------------------------- {{{3
-M["<Space>"] = cmp.mapping(function(fallback)
+M.keymaps["<Space>"] = cmp.mapping(function(fallback)
   if not cmp.visible() then
     auto_toggle.space()
     return fallback()
@@ -97,7 +118,7 @@ M["<Space>"] = cmp.mapping(function(fallback)
     else
       cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = false }
     end
-  elseif input_method_take_effect(first_entry) then
+  elseif M.input_method_take_effect(first_entry) then
     cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = true }
   else
     auto_toggle.space()
@@ -106,7 +127,7 @@ M["<Space>"] = cmp.mapping(function(fallback)
 end, { "i", "s" })
 
 -- <CR> ----------------------------------------------------------------- {{{3
-M["<CR>"] = cmp.mapping(function(fallback)
+M.keymaps["<CR>"] = cmp.mapping(function(fallback)
   if not cmp.visible() then
     return (fallback())
   end
@@ -119,7 +140,7 @@ M["<CR>"] = cmp.mapping(function(fallback)
     return (fallback())
   end
 
-  if input_method_take_effect(entry, "all") then
+  if M.input_method_take_effect(entry, "all") then
     cmp.abort()
     vim.fn.feedkeys " "
   elseif select_entry then
@@ -130,7 +151,7 @@ M["<CR>"] = cmp.mapping(function(fallback)
 end, { "i", "s" })
 
 -- [: 实现 rime 选词定字，选中词的第一个字 ------------------------------ {{{3
-M["["] = cmp.mapping(function(fallback)
+M.keymaps["["] = cmp.mapping(function(fallback)
   if not cmp.visible() then
     return (fallback())
   end
@@ -143,7 +164,7 @@ M["["] = cmp.mapping(function(fallback)
     return (fallback())
   end
 
-  if input_method_take_effect(entry) then
+  if M.input_method_take_effect(entry) then
     local text = entry.completion_item.textEdit.newText
     text = vim.fn.split(text, "\\zs")[1]
     cmp.abort()
@@ -157,7 +178,7 @@ M["["] = cmp.mapping(function(fallback)
 end, { "i", "s" })
 
 -- ]: 实现 rime 选词定字，选中词的最后一个字 ------------------------------ {{{3
-M["]"] = cmp.mapping(function(fallback)
+M.keymaps["]"] = cmp.mapping(function(fallback)
   if not cmp.visible() then
     return (fallback())
   end
@@ -170,7 +191,7 @@ M["]"] = cmp.mapping(function(fallback)
     return (fallback())
   end
 
-  if input_method_take_effect(entry) then
+  if M.input_method_take_effect(entry) then
     local text = entry.completion_item.textEdit.newText
     text = vim.fn.split(text, "\\zs")
     text = text[#text]
@@ -185,7 +206,7 @@ M["]"] = cmp.mapping(function(fallback)
 end, { "i", "s" })
 
 -- <bs> ----------------------------------------------------------------- {{{3
-M["<BS>"] = cmp.mapping(function(fallback)
+M.keymaps["<BS>"] = cmp.mapping(function(fallback)
   if not cmp.visible() then
     local re = auto_toggle.backspace()
     if re == 1 then

@@ -23,10 +23,14 @@ function M.backspace()
   -- 切换成英文输入法
   -- 否则切换成中文输入法
   if utils.is_typing_english(1) then
-    vim.cmd "ToggleRime off"
+    if utils.global_rime_enabled() then
+      utils.toggle_rime()
+    end
     return rc.toggle_off
   else
-    vim.cmd "ToggleRime on"
+    if not utils.global_rime_enabled() then
+      utils.toggle_rime()
+    end
     return rc.toggle_on
   end
 end
@@ -45,10 +49,14 @@ function M.space()
   -- 最后一个字符为英文字符，数字或标点符号时，切换为中文输入法
   -- 否则切换为英文输入法
   if word_before:match "[%w%p]" then
-    vim.cmd "ToggleRime on"
+    if not utils.global_rime_enabled() then
+      utils.toggle_rime()
+    end
     return rc.toggle_on
   else
-    vim.cmd "ToggleRime off"
+    if utils.global_rime_enabled() then
+      utils.toggle_rime()
+    end
     return rc.toggle_off
   end
 end
