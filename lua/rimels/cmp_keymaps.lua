@@ -141,8 +141,11 @@ M.keymaps["<CR>"] = cmp.mapping(function(fallback)
   end
 
   if M.input_method_take_effect(entry, "all") then
+    if utils.in_english_environment() then
+      utils.toggle_rime()
+    end
     cmp.abort()
-    vim.fn.feedkeys " "
+    vim.fn.feedkeys(" ", "n")
   elseif select_entry then
     cmp.confirm()
   else

@@ -43,7 +43,7 @@ function M.buf_rime_enabled(bufnr)
 end
 
 function M.buf_toggle_rime(bufnr, buf_only)
-  if M.buf_rime_enabled() ~= M.global_rime_enabled() or buf_only 
+  if M.buf_rime_enabled() ~= M.global_rime_enabled() or buf_only
   then
     vim.api.nvim_buf_set_var(0, buffer_rime_status, not M.buf_rime_enabled())
     return
