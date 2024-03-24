@@ -30,7 +30,7 @@ local update_option = function(default, user)
       if type(user[key]) ~= type(value) then
         error(key .. " must be " .. type(value))
       elseif type(value) ~= "table" then
-        updated_default[key] = update_option(value, user[key])
+        updated_default[key] = vim.tbl_extend("force", value, user[key])
       else
         updated_default[key] = user[key]
       end
@@ -42,10 +42,28 @@ local update_option = function(default, user)
   return updated_default
 end
 
+local start_rime_ls = function()
+    vim.cmd "stopinsert"
+    local bufnr = vim.api.nvim_get_current_buf()
+    local client = utils.buf_get_rime_ls_client(bufnr)
+
+    if not client then
+      utils.buf_attach_rime_ls(bufnr)
+      client = utils.buf_get_rime_ls_client(bufnr)
+    end
+
+    if not utils.global_rime_enabled() then
+      utils.toggle_rime(client)
+    end
+
+    if not utils.buf_rime_enabled() then
+      utils.buf_toggle_rime(bufnr, true)
+    end
+
+    vim.fn.feedkeys("a", "n")
+end
 
 local M = {}
-
-
 
 function M.setup(opts)
   if M.get_rime_ls_client() then return M.opts end
@@ -98,25 +116,11 @@ function M.setup(opts)
   local keymaps = cmp_keymaps:set_probes(opts.probes.using).keymaps
   cmp.setup { mapping = cmp.mapping.preset.insert(keymaps) }
 
-  vim.keymap.set({ "i" }, opts.keys.start, function()
-    vim.cmd "stopinsert"
-    local bufnr = vim.api.nvim_get_current_buf()
-    local client = utils.buf_get_rime_ls_client(bufnr)
-
-    if not client then
-      utils.buf_attach_rime_ls(bufnr)
-      client = utils.buf_get_rime_ls_client(bufnr)
-    end
-
-    if not utils.global_rime_enabled() then
-      utils.toggle_rime(client)
-    end
-
-    if not utils.buf_rime_enabled() then
-      utils.buf_toggle_rime(bufnr, true)
-    end
-    vim.fn.feedkeys("a", "n")
-  end, { silent = true, noremap = true, desc = "Toggle Input Method" })
+  vim.keymap.set({ "i" }, opts.keys.start, start_rime_ls, {
+    silent = true,
+    noremap = true,
+    desc = "Toggle Input Method",
+  })
 
   lspconfig.rime_ls.launch()
 
