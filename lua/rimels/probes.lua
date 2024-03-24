@@ -1,4 +1,4 @@
-local utils = require "rime.utils"
+local utils = require "rimels.utils"
 local M = {}
 local PASS = false
 local REJECT = true

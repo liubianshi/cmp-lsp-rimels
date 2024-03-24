@@ -16,8 +16,11 @@ local M = {
   max_candidates = 9,
   trigger_characters = {},
   schema_trigger_character = "&", -- [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
-  probes_ignored = {},
-  probes_add = {},
+  probes = {
+    ignore = {},
+    using = {},
+    add = {},
+  }
 }
 
 if vim.fn.has "mac" == 1 then

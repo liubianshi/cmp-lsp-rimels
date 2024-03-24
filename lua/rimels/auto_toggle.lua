@@ -1,4 +1,4 @@
-local utils = require "rime.utils"
+local utils = require "rimels.utils"
 local rc = { not_toggle = 0, toggle_off = 1, toggle_on = 2 }
 local M = {}
 

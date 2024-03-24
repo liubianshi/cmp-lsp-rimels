@@ -1,7 +1,7 @@
 local cmp         = require "cmp"
 local lsp_kinds   = require("cmp.types").lsp.CompletionItemKind
-local utils       = require "rime.utils"
-local auto_toggle = require "rime.auto_toggle"
+local utils       = require "rimels.utils"
+local auto_toggle = require "rimels.auto_toggle"
 
 local feedkey = function(key, mode)
   vim.api.nvim_feedkeys(

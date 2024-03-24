@@ -11,24 +11,52 @@ if status_ok then
   capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
 end
 
-local utils        = require "rime.utils"
-local default_opts = require "rime.default_opts"
+local utils        = require "rimels.utils"
+local default_opts = require "rimels.default_opts"
 local lspconfig    = require "lspconfig"
 local configs      = require "lspconfig.configs"
-local probes       = require "rime.probes"
-local cmp_keymaps  = require("rime.cmp_keymaps")
+local probes       = require "rimels.probes"
+local cmp_keymaps  = require("rimels.cmp_keymaps")
+
+local update_option = function(default, user)
+  if not (user and next(user)) then
+    return default
+  end
+
+  local updated_default = {}
+
+  for key, value in pairs(default) do
+    if user[key] then
+      if type(user[key]) ~= type(value) then
+        error(key .. " must be " .. type(value))
+      elseif type(value) ~= "table" then
+        updated_default[key] = update_option(value, user[key])
+      else
+        updated_default[key] = user[key]
+      end
+    else
+      updated_default[key] = value  -- 如果 user 表格中没有对应 key，则保持默认值不变
+    end
+  end
+
+  return updated_default
+end
+
 
 local M = {}
 
+
+
 function M.setup(opts)
-  opts = vim.tbl_extend("force", default_opts, opts or {})
-  opts.probes = {}
+  if M.get_rime_ls_client() then return M.opts end
+  opts = update_option(default_opts, opts or {})
+  opts.probes.using = opts.probes.using or {}
   for name,probe in pairs(probes) do
-    if vim.fn.index(opts.probes_ignored, name) < 0 then
-      opts.probes[name] = probe
+    if vim.fn.index(opts.probes.ignore, name) < 0 then
+      opts.probes.using[name] = probe
     end
   end
-  opts.probes = vim.tbl_extend("force", opts.probes, opts.probes_add)
+  opts.probes.using = vim.tbl_extend("force", opts.probes.using, opts.probes.add)
 
 
   local rime_on_attach = function(client, _)
@@ -67,7 +95,7 @@ function M.setup(opts)
   }
 
   -- Configure how various keys respond
-  local keymaps = cmp_keymaps:set_probes(opts.probes).keymaps
+  local keymaps = cmp_keymaps:set_probes(opts.probes.using).keymaps
   cmp.setup { mapping = cmp.mapping.preset.insert(keymaps) }
 
   vim.keymap.set({ "i" }, opts.keys.start, function()
@@ -91,14 +119,22 @@ function M.setup(opts)
   end, { silent = true, noremap = true, desc = "Toggle Input Method" })
 
   lspconfig.rime_ls.launch()
+
+  M.opts = opts
+  return M.opts
 end
 
-function M.get_probe_names()
-  local probe_names = {}
-  for name, _ in pairs(probes) do
-    table.insert(probe_names, name)
+function M.get_rime_ls_client()
+  local active_clients = vim.lsp.get_active_clients()
+  if #active_clients == 0 then return nil end
+
+  for _, client in ipairs(active_clients) do
+    if client.name == "rime_ls" then
+      return client
+    end
   end
-  return probe_names
+
+  return nil
 end
 
 return M
