@@ -1,9 +1,8 @@
 # cmp-lsp-rimels
 
-https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-a39f-1870b2bcec30
-
-
 `cmp-lsp-rimels` 的目标是优化 Neovim 下的中文输入体验，特别是中英文混合输入时的体验。
+
+https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-a39f-1870b2bcec30
 
 ## 特点
 
