@@ -71,10 +71,9 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
     using = {},
     add = {},
   }
-  detects = {
-    ignore = {},
-    using = {},
-    add = {},
+  detectors = {
+    with_treesitter = {},
+    with_syntax = {},
   }
 }
 ```
