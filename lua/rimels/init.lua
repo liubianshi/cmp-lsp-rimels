@@ -16,6 +16,7 @@ local default_opts = require "rimels.default_opts"
 local lspconfig    = require "lspconfig"
 local configs      = require "lspconfig.configs"
 local probes       = require "rimels.probes"
+local detects      = require "rimels.english_environment"
 local cmp_keymaps  = require("rimels.cmp_keymaps")
 
 local update_option = function(default, user)
@@ -68,14 +69,28 @@ local M = {}
 function M.setup(opts)
   if M.get_rime_ls_client() then return M.opts end
   opts = update_option(default_opts, opts or {})
-  opts.probes.using = opts.probes.using or {}
+
   for name,probe in pairs(probes) do
     if vim.fn.index(opts.probes.ignore, name) < 0 then
       opts.probes.using[name] = probe
     end
   end
-  opts.probes.using = vim.tbl_extend("force", opts.probes.using, opts.probes.add)
+  opts.probes.using = vim.tbl_extend(
+    "force",
+    opts.probes.using,
+    opts.probes.add
+  )
 
+  for name,detect in pairs(detects) do
+    if vim.fn.index(opts.detects.ignore, name) < 0 then
+      opts.detects.using[name] = detect
+    end
+  end
+  opts.detects.using = vim.tbl_extend(
+    "force",
+    opts.detects.using,
+    opts.detects.add
+  )
 
   local rime_on_attach = function(client, _)
     utils.create_command_toggle_rime(client)
@@ -83,6 +98,7 @@ function M.setup(opts)
     utils.create_autocmd_toggle_rime_according_buffer_status(client)
     utils.create_inoremap_start_rime(client, opts.keys.start)
     utils.create_inoremap_stop_rime(client, opts.keys.stop)
+    utils.create_inoremap_esc(opts.keys.esc)
   end
 
   if not configs.rime_ls then
@@ -113,7 +129,10 @@ function M.setup(opts)
   }
 
   -- Configure how various keys respond
-  local keymaps = cmp_keymaps:set_probes(opts.probes.using).keymaps
+  local keymaps = cmp_keymaps:set_probes_detects(
+    opts.probes.using,
+    opts.detects.using
+  ).keymaps
   cmp.setup { mapping = cmp.mapping.preset.insert(keymaps) }
 
   vim.keymap.set({ "i" }, opts.keys.start, start_rime_ls, {

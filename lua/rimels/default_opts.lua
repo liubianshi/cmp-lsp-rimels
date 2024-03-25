@@ -20,6 +20,11 @@ local M = {
     ignore = {},
     using = {},
     add = {},
+  },
+  detects = {
+    ignore = {},
+    using = {},
+    add = {},
   }
 }
 

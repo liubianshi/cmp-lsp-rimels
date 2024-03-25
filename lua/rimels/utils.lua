@@ -112,6 +112,11 @@ function M.create_command_toggle_rime(client)
   end, { nargs = "?", desc = "Toggle Rime" })
 end
 
+function M.create_inoremap_esc(key)
+  vim.keymap.set('i', key, "<cmd>stopinsert<cr>",
+      {desc = "Stop insert", noremap = true, buffer = true})
+end
+
 function M.create_inoremap_start_rime(client, key)
   vim.keymap.set("i", key, function()
     vim.cmd "stopinsert"
@@ -184,45 +189,6 @@ end
 function M.global_rime_enabled()
   local exist,status = pcall(vim.api.nvim_get_var, global_rime_status)
   return (exist and status)
-end
-
-
-function M.in_english_environment()
-  local info = vim.inspect_pos()
-  local englist_env = false
-  for _, ts in ipairs(info.treesitter) do
-    if ts.capture == "markup.math" or ts.capture == "markup.raw" then
-      return true
-    elseif ts.capture == "markup.raw.block" then
-      englist_env = true
-    elseif ts.capture == "comment" then
-      return false
-    end
-  end
-  if englist_env then
-    return englist_env
-  end
-
-  -- pandoc highlight
-  for _, syn in ipairs(info.syntax) do
-    local hl = syn.hl_group
-    local hl_link = syn.hl_group_link
-    if
-      hl == "pandocLaTeXInlineMath" or
-      hl == "pandocNoFormatted" or
-      hl == "pandocOperator" or
-      hl == "pandocLaTeXMathBlock"
-    then
-      return true
-    elseif hl == "pandocDelimitedCodeBlock"
-    then
-      englist_env = true
-    elseif hl_link == "Comment"
-    then
-      return false
-    end
-  end
-  return englist_env
 end
 
 function M.is_typing_english(shift)
