@@ -16,7 +16,7 @@ local default_opts = require "rimels.default_opts"
 local lspconfig    = require "lspconfig"
 local configs      = require "lspconfig.configs"
 local probes       = require "rimels.probes"
-local detects      = require "rimels.english_environment"
+local detectors    = require "rimels.english_environment_detectors"
 local cmp_keymaps  = require("rimels.cmp_keymaps")
 
 local update_option = function(default, user)
@@ -81,16 +81,18 @@ function M.setup(opts)
     opts.probes.add
   )
 
-  for name,detect in pairs(detects) do
-    if vim.fn.index(opts.detects.ignore, name) < 0 then
-      opts.detects.using[name] = detect
-    end
-  end
-  opts.detects.using = vim.tbl_extend(
-    "force",
-    opts.detects.using,
-    opts.detects.add
-  )
+  opts.detectors = {
+    with_treesitter = vim.tbl_extend(
+        "force",
+        detectors.with_treesitter,
+        opts.detectors.with_treesitter or {}
+    ),
+    with_syntax = vim.tbl_extend(
+      "force",
+      detectors.with_syntax,
+      opts.detectors.with_syntax or {}
+    ),
+  }
 
   local rime_on_attach = function(client, _)
     utils.create_command_toggle_rime(client)
@@ -131,7 +133,7 @@ function M.setup(opts)
   -- Configure how various keys respond
   local keymaps = cmp_keymaps:set_probes_detects(
     opts.probes.using,
-    opts.detects.using
+    opts.detectors
   ).keymaps
   cmp.setup { mapping = cmp.mapping.preset.insert(keymaps) }
 

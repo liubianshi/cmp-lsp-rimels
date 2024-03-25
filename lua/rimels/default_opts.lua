@@ -21,10 +21,9 @@ local M = {
     using = {},
     add = {},
   },
-  detects = {
-    ignore = {},
-    using = {},
-    add = {},
+  detectors = {
+    with_treesitter = {},
+    with_syntax = {},
   }
 }
 

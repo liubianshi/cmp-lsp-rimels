@@ -10,9 +10,8 @@ local feedkey = function(key, mode)
   )
 end
 
-
 local M = {keymaps = {}}
-function M:set_probes_detects(probes, detects)
+function M:set_probes_detects(probes, detectors)
   function self.passed_all_probes(probes_ignored)
     if probes_ignored and probes_ignored == "all" then
       return true
@@ -26,21 +25,29 @@ function M:set_probes_detects(probes, detects)
     return true
   end
 
-  function self.in_english_environment(detects_ignored)
-    local detect_englist_env = detects
+  function self.in_english_environment()
+    local detect_english_env = detectors
     local info = vim.inspect_pos()
-    local englist_env = detect_englist_env.with_treesitter(info.treesitter)
-    if englist_env then return true end
+    local filetype = vim.api.nvim_buf_get_option(0, 'filetype')
 
-    for name,detect_function in pairs(detect_englist_env) do
-      if
-        name ~= "with_treesitter" and
-        vim.fn.index(detects_ignored or {}, name) < 0 and
-        detect_function(info.syntax)
-      then
-        return true
-      end
+    if not filetype or filetype == "" then
+      return false
     end
+
+    if
+      detect_english_env.with_treesitter[filetype] and
+      detect_english_env.with_treesitter[filetype](info)
+    then
+      return true
+    end
+
+    if
+      detect_english_env.with_syntax[filetype] and
+      detect_english_env.with_syntax[filetype](info)
+    then
+      return true
+    end
+
     return false
   end
 

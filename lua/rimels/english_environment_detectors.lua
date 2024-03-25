@@ -1,10 +1,14 @@
-local M = {}
+local M = {with_treesitter = {}, with_syntax = {}}
 
-function M.with_treesitter(syns)
-  syns = syns or {}
+function M.with_treesitter.markdown(info)
+  info = info or vim.inspect_pos()
+  local trees = info.treesitter
   local englist_env = false
-  for _, ts in ipairs(syns) do
-    if ts.capture == "markup.math" or ts.capture == "markup.raw" then
+  for _, ts in ipairs(trees) do
+    if
+      ts.capture == "markup.math" or
+      ts.capture == "markup.raw"
+    then
       return true
     elseif ts.capture == "markup.raw.block" then
       englist_env = true
@@ -15,8 +19,9 @@ function M.with_treesitter(syns)
   return englist_env
 end
 
-function M.with_pandoc_highlight(syns)
-  syns = syns or {}
+function M.with_syntax.markdown(info)
+  info = info or vim.inspect_pos()
+  local syns = info.syntax
   local englist_env = false
   for _, syn in ipairs(syns) do
     local hl = syn.hl_group
