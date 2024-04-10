@@ -25,7 +25,7 @@ end
 
 function M.buf_get_rime_ls_client(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
-  local current_buffer_clients = vim.lsp.buf_get_clients(bufnr)
+  local current_buffer_clients = vim.lsp.get_active_clients({bufnr = bufnr})
   if #current_buffer_clients > 0 then
     for _, client in ipairs(current_buffer_clients) do
       if client.name == "rime_ls" then
