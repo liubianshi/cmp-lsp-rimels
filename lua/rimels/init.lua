@@ -25,12 +25,13 @@ local update_option = function(default, user)
   end
 
   local updated_default = {}
-
   for key, value in pairs(default) do
     if user[key] then
-      if type(user[key]) ~= type(value) then
+      if key == "cmd" and type(user[key]) == "string" then
+        updated_default[key] = { user[key] }
+      elseif type(user[key]) ~= type(value) then
         error(key .. " must be " .. type(value))
-      elseif type(value) ~= "table" then
+      elseif type(value) == "table" then
         updated_default[key] = vim.tbl_extend("force", value, user[key])
       else
         updated_default[key] = user[key]
