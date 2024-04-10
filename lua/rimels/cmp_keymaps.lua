@@ -1,7 +1,9 @@
 local cmp         = require "cmp"
 local lsp_kinds   = require("cmp.types").lsp.CompletionItemKind
 local utils       = require "rimels.utils"
-
+local langs_not_support_named_parameters = {
+  "bash", "sh", "lua", "perl"
+}
 local feedkey = function(key, mode)
   vim.api.nvim_feedkeys(
     vim.api.nvim_replace_termcodes(key, true, true, true),
@@ -198,13 +200,18 @@ M.keymaps["<Space>"] = cmp.mapping(function(fallback)
 
   if select_entry then
     if
-      select_entry:get_kind()
-      and lsp_kinds[select_entry:get_kind()] ~= "Text"
+      select_entry.source.name == "nvim_lsp"
+      and select_entry.source.source.client.name == "rime_ls"
     then
       cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = false }
-      vim.fn.feedkeys " "
+    elseif
+      select_entry.source.name == "nvim_lsp_signature_help"
+      and vim.fn.index(langs_not_support_named_parameters, vim.bo.filetype) >= 0
+    then
+      return fallback()
     else
       cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = false }
+      vim.fn.feedkeys " "
     end
   elseif M.input_method_take_effect(first_entry) then
     cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = true }
