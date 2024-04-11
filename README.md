@@ -74,7 +74,46 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
   detectors = {
     with_treesitter = {},
     with_syntax = {},
+  },
+  cmp_keymaps = {
+    disable = {
+      space     = false,
+      numbers   = false,
+      enter     = false,
+      brackets  = false,
+      backspace = false,
+    }
+  },
+}
+```
+
+### 禁用 cmp keymaps
+
+在默认情况下，本插件会针对 nvim-cmp 设置几组 Keymaps, 这是本插件发挥作用的关键，所以通常不建议修改。
+
+如果确实有进一步修改按键行为的需求，可以通过 `cmp_keymaps.disable` 选择性禁用。
+
+- `space`, 空格键自动切换输入法, 以及当第一个候选字由 rime_ls 返回时上屏该候选词
+- `numbers`, 数字键直接上屏
+- `enter`, 回车键放弃补全
+- `brackets`, 以词定字  
+- `backspace`, 删除键自动切换输入法
+
+例如, 禁用通过 `[` 和 `]` 实现的以词定字功能, 可采用如下设置: 
+
+```lua
+{
+  cmp_keymaps = {
+    disable = {
+      brackets = true
+    }
   }
 }
 ```
+
+
+
+
+
+
 
