@@ -136,7 +136,10 @@ function M.setup(opts)
     opts.probes.using,
     opts.detectors
   ).keymaps
-  cmp.setup { mapping = cmp.mapping.preset.insert(keymaps) }
+  keymaps = utils.filter_cmp_keymaps(keymaps, opts.cmp_keymaps.disable)
+  if next(keymaps) then
+    cmp.setup { mapping = cmp.mapping.preset.insert(keymaps) }
+  end
 
   vim.keymap.set({ "i" }, opts.keys.start, start_rime_ls, {
     silent = true,

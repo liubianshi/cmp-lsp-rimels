@@ -164,6 +164,28 @@ function M.error_rime_ls_not_start_yet()
   end
 end
 
+--- @param keymaps table
+--- @param disable table
+function M.filter_cmp_keymaps(keymaps, disable)
+  if not keymaps then return {} end
+  if not disable then return keymaps end
+
+  if disable.space then keymaps['<Space>'] = nil end
+  if disable.enter then keymaps['<CR>'] = nil end
+  if disable.backspace then keymaps['<BS>'] = nil end
+  if disable.brackets then
+    keymaps['['] = nil
+    keymaps[']'] = nil
+  end
+  if disable.numbers then
+    for numkey = 0, 9 do
+      local numkey_str = tostring(numkey)
+      keymaps[numkey_str] = nil
+    end
+  end
+  return keymaps
+end
+
 function M.get_chars_before_cursor(colnums_before, length)
   length = length or 1
   if colnums_before < length then

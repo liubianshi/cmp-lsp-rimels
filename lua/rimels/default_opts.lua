@@ -24,7 +24,16 @@ local M = {
   detectors = {
     with_treesitter = {},
     with_syntax = {},
-  }
+  },
+  cmp_keymaps = {
+    disable = {
+      space     = false,
+      numbers   = false,
+      enter     = false,
+      brackets  = false,
+      backspace = false,
+    }
+  },
 }
 
 if vim.fn.has "mac" == 1 then
