@@ -1,5 +1,4 @@
 local cmp         = require "cmp"
-local lsp_kinds   = require("cmp.types").lsp.CompletionItemKind
 local utils       = require "rimels.utils"
 local langs_not_support_named_parameters = {
   "bash", "sh", "lua", "perl"

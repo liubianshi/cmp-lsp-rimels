@@ -20,11 +20,12 @@ function M.caps_start()
 end
 
 function M.probe_punctuation_after_half_symbol()
+  local content_before = utils.get_content_before_cursor() or "";
   local word_pre1 = utils.get_chars_before_cursor(1, 1)
   local word_pre2 = utils.get_chars_before_cursor(2, 1)
   if not (word_pre1 and word_pre1:match "[-%p]") then
     return PASS
-  elseif not word_pre2 or word_pre2 == "" or word_pre2:match "[%w%p%s]" then
+  elseif not word_pre2 or word_pre2 == "" or content_before:match "%s[%w%p]*[-%p]" then
     return REJECT
   else
     return PASS
