@@ -101,6 +101,13 @@ function M.autotoggle_space()
     return rc.not_toggle
   end
 
+  -- 在英文输入状态下，如果光标后为英文符号，则不切换成中文输入状态
+  -- 例如：(abc|)
+  local char_after = utils.get_chars_after_cursor(1)
+  if not utils.global_rime_enabled() and char_after:match("[!-~]") then
+    return rc.not_toggle
+  end
+
   -- 最后一个字符为英文字符，数字或标点符号时，切换为中文输入法
   -- 否则切换为英文输入法
   if word_before:match "[%w%p]" then

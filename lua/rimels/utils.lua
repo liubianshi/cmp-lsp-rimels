@@ -186,6 +186,13 @@ function M.filter_cmp_keymaps(keymaps, disable)
   return keymaps
 end
 
+function M.get_chars_after_cursor(length)
+  length = length or 1
+  local line, col = unpack(vim.api.nvim_win_get_cursor(0))
+  local line_content = vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]
+  return line_content:sub(col + 1, col + length)
+end
+
 function M.get_chars_before_cursor(colnums_before, length)
   length = length or 1
   if colnums_before < length then
