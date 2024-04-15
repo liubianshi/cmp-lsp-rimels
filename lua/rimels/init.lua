@@ -125,6 +125,7 @@ function M.setup(opts)
       shared_data_dir = opts.shared_data_dir,
       user_data_dir = opts.rime_user_dir,
       log_dir = opts.rime_user_dir .. "/log",
+      always_incomplete = opts.always_incomplete,
       max_candidates = opts.max_candidates,
     },
     on_attach = rime_on_attach,
