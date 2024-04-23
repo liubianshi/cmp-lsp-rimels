@@ -11,6 +11,14 @@ local feedkey = function(key, mode)
   )
 end
 
+local get_input_code = function(entry)
+  return entry.completion_item.filterText
+end
+
+local get_cmp_result = function(entry)
+    return entry.completion_item.textEdit.newText
+end
+
 local M = {keymaps = {}}
 function M:set_probes_detects(probes, detectors)
   function self.passed_all_probes(probes_ignored)
@@ -141,6 +149,7 @@ function M.input_method_take_effect(entry, probes_ignored)
     and entry.source.source.client.name == "rime_ls"
     and M.passed_all_probes(probes_ignored)
   then
+    if get_input_code(entry) == get_cmp_result(entry) then return false end
     return true
   else
     return false
@@ -220,6 +229,12 @@ M.keymaps["<Space>"] = cmp.mapping(function(fallback)
       vim.fn.feedkeys " "
     end
   elseif M.input_method_take_effect(first_entry) then
+    local input_code = get_input_code(first_entry)
+    local cmp_result = get_cmp_result(first_entry)
+    -- 临时解决 * 和 [ 被错误吃掉的问题
+    if input_code:match('[*\\[]') then
+      first_entry.completion_item.textEdit.newText = input_code:sub(1, 1) .. cmp_result
+    end
     cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = true }
   else
     M.autotoggle_space()
