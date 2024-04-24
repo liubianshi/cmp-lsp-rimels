@@ -1,7 +1,7 @@
 local cmp         = require "cmp"
 local utils       = require "rimels.utils"
 local langs_not_support_named_parameters = {
-  "bash", "sh", "lua", "perl"
+  "bash", "sh", "lua", "perl", "vim"
 }
 local feedkey = function(key, mode)
   vim.api.nvim_feedkeys(
@@ -229,11 +229,19 @@ M.keymaps["<Space>"] = cmp.mapping(function(fallback)
       vim.fn.feedkeys " "
     end
   elseif M.input_method_take_effect(first_entry) then
+    -- 临时解决 * 和 [ 被错误吃掉的问题
     local input_code = get_input_code(first_entry)
     local cmp_result = get_cmp_result(first_entry)
-    -- 临时解决 * 和 [ 被错误吃掉的问题
-    if input_code:match('[*\\[]') then
-      first_entry.completion_item.textEdit.newText = input_code:sub(1, 1) .. cmp_result
+    local special_symbol_pattern = '[`*%[%]{}]'
+    local other_symbol_pattern   = '[^`*%[%]{}]'
+    if input_code:match(special_symbol_pattern .. ".") then
+      local pattern = string.format("^(.*%s)%s+$", special_symbol_pattern, other_symbol_pattern)
+      local prefix = input_code:gsub(pattern, "%1")
+      if prefix:sub(1,1) == prefix:sub(2,2) and prefix:sub(1,1):match(special_symbol_pattern)
+      then
+        prefix = prefix:sub(2)
+      end
+      first_entry.completion_item.textEdit.newText = prefix .. cmp_result
     end
     cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = true }
   else
