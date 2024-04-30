@@ -102,6 +102,7 @@ function M.setup(opts)
     utils.create_inoremap_start_rime(client, opts.keys.start)
     utils.create_inoremap_stop_rime(client, opts.keys.stop)
     utils.create_inoremap_esc(opts.keys.esc)
+    utils.create_inoremap_undo(opts.keys.undo)
   end
 
   if not configs.rime_ls then

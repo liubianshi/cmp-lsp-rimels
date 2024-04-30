@@ -13,6 +13,7 @@ local M = {
     start = ";f",
     stop = ";;",
     esc = ";j",
+    undo = ";u",
   },
   max_candidates = 9,
   trigger_characters = {},

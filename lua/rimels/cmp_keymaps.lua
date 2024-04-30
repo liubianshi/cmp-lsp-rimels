@@ -206,6 +206,7 @@ end
 
 -- <Space> -------------------------------------------------------------- {{{3
 M.keymaps["<Space>"] = cmp.mapping(function(fallback)
+  pcall(vim.api.nvim_buf_del_var, 0, 'rimels_last_entry')
   if not cmp.visible() then
     M.autotoggle_space()
     return fallback()
@@ -243,6 +244,7 @@ M.keymaps["<Space>"] = cmp.mapping(function(fallback)
       end
       first_entry.completion_item.textEdit.newText = prefix .. cmp_result
     end
+    vim.api.nvim_buf_set_var(0, 'rimels_last_entry', {input = input_code, cmp = cmp_result})
     cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = true }
   else
     M.autotoggle_space()

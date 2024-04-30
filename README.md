@@ -26,6 +26,8 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
   选中候选词并直接上屏，通过 `[` 和 `]` 实现以词定字等，并采用临时方案解决了上游的
   一些问题, 如 [用数字选词以后还需要一次空格才能上屏幕][5]，[字符补全后消失][4]
 
+- 能够撤销上屏，并恢复之前输入的字符
+
 - 在各种 Buffer 下均可启用，且通常情况不会意外开启
 
 - 具有一定的可扩展性，比如控制两类探针的使用，一类用于判定当前是否处在英文输入
@@ -86,7 +88,7 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
 
 ```lua
 {
-  keys = { start = ";f", stop = ";;", esc = ";j" },
+  keys = { start = ";f", stop = ";;", esc = ";j", undo = ";u" },
   cmd = { "/sbin/rime_ls" }, -- MacOS: ~/.local/bin/rime_ls
   rime_user_dir = "~/.local/share/rime-ls",
   shared_data_dir = "/usr/share/rime-data", -- MacOS: /Library/Input Methods/Squirrel.app/Contents/SharedSupport

@@ -153,6 +153,29 @@ function M.create_inoremap_stop_rime(client, key)
   )
 end
 
+function M.create_inoremap_undo(key)
+  local fallback = function()
+    local keys = vim.api.nvim_replace_termcodes(key, true, false, true)
+    vim.api.nvim_feedkeys(keys, 'n', false)
+  end
+  vim.keymap.set("i", key, function()
+    if vim.fn.exists('b:rimels_last_entry') == 0 then return fallback() end
+    local entry = vim.api.nvim_buf_get_var(0, 'rimels_last_entry')
+    if not entry.input or not entry.cmp then return fallback() end
+    if require('cmp').visible() then return fallback() end
+
+    local content_before = M.get_content_before_cursor(0) or ""
+    if not content_before:match(entry.cmp .. '$') then return fallback() end
+    local char_num = vim.fn.strchars(entry.cmp)
+    if char_num == 1 then
+      vim.cmd("normal! dl")
+    else
+      vim.cmd("normal! d" .. char_num - 1 .. "h")
+    end
+    vim.api.nvim_put({entry.input}, "c", true, true)
+  end, {desc = "rimels: undo last completion", noremap = true, buffer = true})
+end
+
 function M.error_rime_ls_not_start_yet()
   local status_ok, notify = pcall(require, "notify")
   if status_ok then
