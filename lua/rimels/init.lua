@@ -13,8 +13,6 @@ end
 
 local utils        = require "rimels.utils"
 local default_opts = require "rimels.default_opts"
-local lspconfig    = require "lspconfig"
-local configs      = require "lspconfig.configs"
 local probes       = require "rimels.probes"
 local detectors    = require "rimels.english_environment_detectors"
 local cmp_keymaps  = require("rimels.cmp_keymaps")
@@ -68,6 +66,9 @@ end
 local M = {}
 
 function M.setup(opts)
+  local lspconfig    = require "lspconfig"
+  local configs      = require "lspconfig.configs"
+  local util         = require "lspconfig.util"
   if M.get_rime_ls_client() then return M.opts end
   opts = update_option(default_opts, opts or {})
 
@@ -110,6 +111,7 @@ function M.setup(opts)
       default_config = {
         name = "rime_ls",
         cmd = opts.cmd,
+        root_dir = util.root_pattern(".obsidian", ".git", ".vim"),
         filetypes = opts.filetypes,
         single_file_support = opts.single_file_support,
       },
