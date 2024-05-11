@@ -29,6 +29,7 @@ function M.probe_punctuation_after_half_symbol()
     not word_pre2 or word_pre2 == ""
     or word_pre2:match('[-%s%p]')
     or (word_pre2:match('%w') and content_before:match('%s%w+$'))
+    or (word_pre2:match('%w') and content_before:match('^%w+$'))
   then
     return REJECT
   else
