@@ -111,7 +111,7 @@ function M.setup(opts)
       default_config = {
         name = "rime_ls",
         cmd = opts.cmd,
-        root_dir = util.root_pattern('.root', '.svn', '.git', '.hg', '.project', '.obsidian'),
+        root_dir = function() end,
         filetypes = opts.filetypes,
         single_file_support = opts.single_file_support,
       },
