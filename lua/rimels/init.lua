@@ -27,6 +27,8 @@ local update_option = function(default, user)
     if user[key] then
       if key == "cmd" and type(user[key]) == "string" then
         updated_default[key] = { user[key] }
+      elseif key == "cmd" and type(user[key]) == "function" then
+        updated_default[key] = user[key]
       elseif type(user[key]) ~= type(value) then
         error(key .. " must be " .. type(value))
       elseif type(value) == "table" then
@@ -68,7 +70,6 @@ local M = {}
 function M.setup(opts)
   local lspconfig    = require "lspconfig"
   local configs      = require "lspconfig.configs"
-  local util         = require "lspconfig.util"
   if M.get_rime_ls_client() then return M.opts end
   opts = update_option(default_opts, opts or {})
 
