@@ -1,4 +1,5 @@
 local cmp         = require "cmp"
+local cmp_config  = require('cmp.config').get()
 local utils       = require "rimels.utils"
 local langs_not_support_named_parameters = {
   "bash", "sh", "lua", "perl", "vim"
@@ -19,7 +20,7 @@ local get_cmp_result = function(entry)
     return entry.completion_item.textEdit.newText
 end
 
-local M = {keymaps = {}}
+local M = {keymaps = cmp_config.mapping}
 function M:set_probes_detects(probes, detectors)
   function self.passed_all_probes(probes_ignored)
     if probes_ignored and probes_ignored == "all" then
