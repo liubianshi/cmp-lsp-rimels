@@ -157,26 +157,45 @@ function M.input_method_take_effect(entry, probes_ignored)
   end
 end
 
+local function is_rime_entry(entry)
+  return entry ~= nil
+    and vim.tbl_get(entry, "source", "name") == "nvim_lsp"
+    and vim.tbl_get(entry, "source", "source", "client", "name") == "rime_ls"
+    and get_input_code(entry) ~= get_cmp_result(entry)
+end
+
 function M.rimels_auto_upload(entries)
-  if #entries == 1 then
-    if M.input_method_take_effect(entries[1]) then
-      cmp.confirm {
-        behavior = cmp.ConfirmBehavior.Insert,
-        select = true,
+  if entries == nil or #entries == 0 then
+    return nil
+  end
+
+  local find_rime_entry = false
+  for _, entry in ipairs(entries) do
+    if not find_rime_entry then
+      find_rime_entry = is_rime_entry(entry)
+      cmp.select_next_item {
+        behavior = cmp.SelectBehavior.Select,
       }
+    else
+      if is_rime_entry(entry) then
+        return nil
+      end
     end
+  end
+
+  if find_rime_entry then
+    cmp.confirm { behavior = cmp.ConfirmBehavior.Insert }
   end
 end
 
 -- number --------------------------------------------------------------- {{{3
-M.keymaps["0"] = cmp.mapping(function(fallback)
-  if not cmp.visible() or not utils.buf_rime_enabled() then
+M.keymaps["<F31>"] = cmp.mapping(function(fallback)
+  if not cmp.visible() then
     return fallback()
   end
 
-  local first_entry = cmp.core.view:get_first_entry()
-  if not M.input_method_take_effect(first_entry) then
-    return fallback()
+  if not utils.buf_rime_enabled() then
+    return nil
   end
 
   M.rimels_auto_upload(cmp.core.view:get_entries())
@@ -201,7 +220,7 @@ for numkey = 1, 9 do
     cmp.mapping.close()
     feedkey(numkey_str, "n")
     cmp.complete()
-    feedkey("0", "m")
+    feedkey("<F31>", "m")
   end, { "i" })
 end
 
