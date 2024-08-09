@@ -20,6 +20,13 @@ local get_cmp_result = function(entry)
     return entry.completion_item.textEdit.newText
 end
 
+local is_rime_entry = function(entry)
+  return entry ~= nil
+    and vim.tbl_get(entry, "source", "name") == "nvim_lsp"
+    and vim.tbl_get(entry, "source", "source", "client", "name") == "rime_ls"
+    and get_input_code(entry) ~= get_cmp_result(entry)
+end
+
 local M = {keymaps = cmp_config.mapping}
 function M:set_probes_detects(probes, detectors)
   function self.passed_all_probes(probes_ignored)
@@ -157,50 +164,7 @@ function M.input_method_take_effect(entry, probes_ignored)
   end
 end
 
-local function is_rime_entry(entry)
-  return entry ~= nil
-    and vim.tbl_get(entry, "source", "name") == "nvim_lsp"
-    and vim.tbl_get(entry, "source", "source", "client", "name") == "rime_ls"
-    and get_input_code(entry) ~= get_cmp_result(entry)
-end
-
-function M.rimels_auto_upload(entries)
-  if entries == nil or #entries == 0 then
-    return nil
-  end
-
-  local find_rime_entry = false
-  for _, entry in ipairs(entries) do
-    if not find_rime_entry then
-      find_rime_entry = is_rime_entry(entry)
-      cmp.select_next_item {
-        behavior = cmp.SelectBehavior.Select,
-      }
-    else
-      if is_rime_entry(entry) then
-        return nil
-      end
-    end
-  end
-
-  if find_rime_entry then
-    cmp.confirm { behavior = cmp.ConfirmBehavior.Insert }
-  end
-end
-
 -- number --------------------------------------------------------------- {{{3
-M.keymaps["<F31>"] = cmp.mapping(function(fallback)
-  if not cmp.visible() then
-    return fallback()
-  end
-
-  if not utils.buf_rime_enabled() then
-    return nil
-  end
-
-  M.rimels_auto_upload(cmp.core.view:get_entries())
-end, { "i" })
-
 for numkey = 1, 9 do
   local numkey_str = tostring(numkey)
   M.keymaps[numkey_str] = cmp.mapping(function(fallback)
@@ -217,10 +181,14 @@ for numkey = 1, 9 do
         return fallback()
       end
     end
-    cmp.mapping.close()
-    feedkey(numkey_str, "n")
-    cmp.complete()
-    feedkey("<F31>", "m")
+    local entries = cmp.core.view:get_entries()
+    if not is_rime_entry(entries[numkey]) then
+      return fallback()
+    end
+    for _ = 1, numkey do
+      cmp.select_next_item { behavior = cmp.SelectBehavior.Select }
+    end
+    cmp.confirm { behavior = cmp.ConfirmBehavior.Insert }
   end, { "i" })
 end
 
