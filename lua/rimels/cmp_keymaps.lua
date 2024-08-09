@@ -230,7 +230,7 @@ for _, symbol in ipairs(punctuation_upload_directly) do
       if entries and #entries == 1 then
         -- check character before the punctuation
         local word_before = utils.get_chars_before_cursor(2)
-        if not word_before or word_before:match "[%w%p]" then
+        if not word_before or word_before == "" or word_before:match "[%s%w%p]" then
           cmp.close()
         else
           cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = true}
