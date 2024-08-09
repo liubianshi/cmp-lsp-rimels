@@ -187,8 +187,6 @@ function M.error_rime_ls_not_start_yet()
   end
 end
 
---- @param keymaps table
---- @param disable table
 function M.filter_cmp_keymaps(keymaps, disable)
   if not keymaps then return {} end
   if not disable then return keymaps end
@@ -206,6 +204,20 @@ function M.filter_cmp_keymaps(keymaps, disable)
       keymaps[numkey_str] = nil
     end
   end
+
+  if disable.punctuation_upload_directly then
+    local mapped_symbols = require('rimels.default_opts').punctuation_upload_directly
+    local disabled_symbols = mapped_symbols
+    if type(disable.punctuation_upload_directly) == "table" then
+      disabled_symbols = vim.tbl_filter(function(symbol)
+        return vim.tbl_contains(mapped_symbols, symbol)
+      end, disable.punctuation_upload_directly)
+    end
+    for _, symbol in ipairs(disabled_symbols) do
+        keymaps[symbol] = nil
+    end
+  end
+
   return keymaps
 end
 

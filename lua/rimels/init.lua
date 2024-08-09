@@ -73,11 +73,12 @@ function M.setup(opts)
   if M.get_rime_ls_client() then return M.opts end
   opts = update_option(default_opts, opts or {})
 
-  for name,probe in pairs(probes) do
+  for name, probe in pairs(probes) do
     if vim.fn.index(opts.probes.ignore, name) < 0 then
       opts.probes.using[name] = probe
     end
   end
+
   opts.probes.using = vim.tbl_extend(
     "force",
     opts.probes.using,
@@ -86,9 +87,9 @@ function M.setup(opts)
 
   opts.detectors = {
     with_treesitter = vim.tbl_extend(
-        "force",
-        detectors.with_treesitter,
-        opts.detectors.with_treesitter or {}
+      "force",
+      detectors.with_treesitter,
+      opts.detectors.with_treesitter or {}
     ),
     with_syntax = vim.tbl_extend(
       "force",
@@ -140,10 +141,10 @@ function M.setup(opts)
   }
 
   -- Configure how various keys respond
-  local keymaps = cmp_keymaps:set_probes_detects(
-    opts.probes.using,
-    opts.detectors
-  ).keymaps
+  local keymaps = cmp_keymaps:setup({
+    probes = opts.probes.using,
+    detectors = opts.detectors,
+  }).keymaps
   keymaps = utils.filter_cmp_keymaps(keymaps, opts.cmp_keymaps.disable)
   if next(keymaps) then
     cmp.setup { mapping = cmp.mapping.preset.insert(keymaps) }

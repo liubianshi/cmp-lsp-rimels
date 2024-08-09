@@ -1,14 +1,16 @@
 local cmp         = require "cmp"
 local cmp_config  = require('cmp.config').get()
 local utils       = require "rimels.utils"
+local default_opts = require "rimels.default_opts"
 local langs_not_support_named_parameters = {
   "bash", "sh", "lua", "perl", "vim"
 }
+local punctuation_upload_directly = default_opts.punctuation_upload_directly
 local feedkey = function(key, mode)
   vim.api.nvim_feedkeys(
     vim.api.nvim_replace_termcodes(key, true, true, true),
     mode,
-    true
+    false
   )
 end
 
@@ -28,14 +30,19 @@ local is_rime_entry = function(entry)
 end
 
 local M = {keymaps = cmp_config.mapping}
-function M:set_probes_detects(probes, detectors)
+
+---@class Keymap_setup_opts
+---@field detectors table
+---@field probes table
+---@param opts Keymap_setup_opts
+function M:setup(opts)
   function self.passed_all_probes(probes_ignored)
     if probes_ignored and probes_ignored == "all" then
       return true
     end
     probes_ignored = probes_ignored or {}
-    for name, probe in pairs(probes) do
-      if vim.fn.index(probes_ignored, name) < 0 and probe() then
+    for name, probe in pairs(opts.probes) do
+      if not vim.tbl_contains(probes_ignored, name) and probe() then
         return false
       end
     end
@@ -43,7 +50,7 @@ function M:set_probes_detects(probes, detectors)
   end
 
   function self.in_english_environment()
-    local detect_english_env = detectors
+    local detect_english_env = opts.detectors
     local info = vim.inspect_pos()
     local filetype = vim.api.nvim_buf_get_option(0, 'filetype')
 
@@ -165,7 +172,7 @@ function M.input_method_take_effect(entry, probes_ignored)
 end
 
 -- number --------------------------------------------------------------- {{{3
-for numkey = 1, 9 do
+for numkey = 0, 9 do
   local numkey_str = tostring(numkey)
   M.keymaps[numkey_str] = cmp.mapping(function(fallback)
     if not cmp.visible() or not utils.buf_rime_enabled() then
@@ -181,6 +188,19 @@ for numkey = 1, 9 do
         return fallback()
       end
     end
+
+    -- close the cmp menu when 0 is pressed and all entries are from rime-ls
+    if numkey == 0 then
+      fallback()
+      local entries = cmp.core.view:get_entries()
+      for _, entry in ipairs(entries) do
+        if not is_rime_entry(entry) then
+          return
+        end
+      end
+      return cmp.close()
+    end
+
     local entries = cmp.core.view:get_entries()
     if not is_rime_entry(entries[numkey]) then
       return fallback()
@@ -190,6 +210,35 @@ for numkey = 1, 9 do
     end
     cmp.confirm { behavior = cmp.ConfirmBehavior.Insert }
   end, { "i" })
+end
+
+-- <symbol> ------------------------------------------------------------- {{{3
+for _, symbol in ipairs(punctuation_upload_directly) do
+  M.keymaps[symbol] = cmp.mapping(function(fallback)
+    if not utils.buf_rime_enabled() then
+      return fallback()
+    end
+
+    if cmp.visible() then
+      return fallback()
+    end
+
+    fallback()
+    vim.schedule(function()
+      if not cmp.visible() then return end
+      local entries = cmp.get_entries()
+      if entries and #entries == 1 then
+        -- check character before the punctuation
+        local word_before = utils.get_chars_before_cursor(2)
+        if not word_before or word_before:match "[%w%p]" then
+          cmp.close()
+        else
+          cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = true}
+        end
+      end
+    end)
+    return nil
+  end)
 end
 
 -- <Space> -------------------------------------------------------------- {{{3
@@ -328,8 +377,7 @@ M.keymaps["<BS>"] = cmp.mapping(function(fallback)
     local re = M.autotoggle_backspace()
     if re == 1 then
       cmp.abort()
-      local bs = vim.api.nvim_replace_termcodes("<left>", true, true, true)
-      vim.api.nvim_feedkeys(bs, "n", false)
+      feedkey("<left>", "n")
     else
       fallback()
     end
