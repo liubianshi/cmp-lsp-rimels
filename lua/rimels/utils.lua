@@ -9,15 +9,11 @@ function M.buf_attach_rime_ls(bufnr)
     return
   end
 
-  -- Get all currently active LSP clients
-  local active_clients = vim.lsp.get_active_clients()
-  if #active_clients > 0 then
-    for _, client in ipairs(active_clients) do
-      if client.name == "rime_ls" then
-        vim.lsp.buf_attach_client(bufnr, client.id)
-        return
-      end
-    end
+  local rimels_clients = vim.lsp.get_clients({name = "rime_ls"})
+  if #rimels_clients > 0 then
+    local client = rimels_clients[1]
+    vim.lsp.buf_attach_client(bufnr, client.id)
+    return
   end
 
   require("lspconfig").rime_ls.launch()
@@ -25,13 +21,9 @@ end
 
 function M.buf_get_rime_ls_client(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
-  local current_buffer_clients = vim.lsp.get_active_clients({bufnr = bufnr})
-  if #current_buffer_clients > 0 then
-    for _, client in ipairs(current_buffer_clients) do
-      if client.name == "rime_ls" then
-        return client
-      end
-    end
+  local buffer_rimels_clients = vim.lsp.get_clients({bufnr = bufnr, name = 'rime_ls'})
+  if #buffer_rimels_clients > 0 then
+    return buffer_rimels_clients[1]
   end
   return nil
 end

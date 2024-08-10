@@ -163,16 +163,12 @@ function M.setup(opts)
 end
 
 function M.get_rime_ls_client()
-  local active_clients = vim.lsp.get_active_clients()
-  if #active_clients == 0 then return nil end
-
-  for _, client in ipairs(active_clients) do
-    if client.name == "rime_ls" then
-      return client
-    end
+  local client = vim.lsp.get_clients({name = 'rime_ls'})
+  if #client == 0 then
+    return nil
+  else
+    return client
   end
-
-  return nil
 end
 
 return M

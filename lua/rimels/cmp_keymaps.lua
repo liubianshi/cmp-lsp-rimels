@@ -29,6 +29,14 @@ local is_rime_entry = function(entry)
     and get_input_code(entry) ~= get_cmp_result(entry)
 end
 
+local get_first_entry = function()
+  local entries = cmp.get_entries()
+  if entries and #entries > 0 then
+    return entries[1]
+  end
+end
+
+
 local M = {keymaps = cmp_config.mapping}
 
 ---@class Keymap_setup_opts
@@ -52,7 +60,7 @@ function M:setup(opts)
   function self.in_english_environment()
     local detect_english_env = opts.detectors
     local info = vim.inspect_pos()
-    local filetype = vim.api.nvim_buf_get_option(0, 'filetype')
+    local filetype = vim.api.nvim_get_option_value("filetype", {scope = "local"})
 
     if not filetype or filetype == "" then
       return false
@@ -178,7 +186,7 @@ for numkey = 0, 9 do
     if not cmp.visible() or not utils.buf_rime_enabled() then
       return fallback()
     else
-      local first_entry = cmp.core.view:get_first_entry()
+      local first_entry = get_first_entry()
       if
         not M.input_method_take_effect(
           first_entry,
@@ -249,7 +257,7 @@ M.keymaps["<Space>"] = cmp.mapping(function(fallback)
     return fallback()
   end
   local select_entry = cmp.get_selected_entry()
-  local first_entry = cmp.core.view:get_first_entry()
+  local first_entry = get_first_entry()
 
   if select_entry then
     if
@@ -296,7 +304,7 @@ M.keymaps["<CR>"] = cmp.mapping(function(fallback)
   end
 
   local select_entry = cmp.get_selected_entry()
-  local first_entry = cmp.core.view:get_first_entry()
+  local first_entry = get_first_entry()
   local entry = select_entry or first_entry
 
   if not entry then
@@ -323,7 +331,7 @@ M.keymaps["["] = cmp.mapping(function(fallback)
   end
 
   local select_entry = cmp.get_selected_entry()
-  local first_entry = cmp.core.view:get_first_entry()
+  local first_entry = get_first_entry()
   local entry = select_entry or first_entry
 
   if not entry then
@@ -350,7 +358,7 @@ M.keymaps["]"] = cmp.mapping(function(fallback)
   end
 
   local select_entry = cmp.get_selected_entry()
-  local first_entry = cmp.core.view:get_first_entry()
+  local first_entry = get_first_entry()
   local entry = select_entry or first_entry
 
   if not entry then
