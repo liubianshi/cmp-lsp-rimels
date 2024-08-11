@@ -209,7 +209,7 @@ for numkey = 0, 9 do
       return cmp.close()
     end
 
-    local entries = cmp.core.view:get_entries()
+    local entries = cmp.get_entries()
     if not is_rime_entry(entries[numkey]) then
       return fallback()
     end
@@ -217,6 +217,7 @@ for numkey = 0, 9 do
       cmp.select_next_item { behavior = cmp.SelectBehavior.Select }
     end
     cmp.confirm { behavior = cmp.ConfirmBehavior.Insert }
+    vim.api.nvim_buf_set_var(0, 'rimels_last_entry', entries[numkey].completion_item)
   end, { "i" })
 end
 
@@ -241,6 +242,7 @@ for _, symbol in ipairs(punctuation_upload_directly) do
         if not word_before or word_before == "" or word_before:match "[%s%w%p]" then
           cmp.close()
         else
+          vim.api.nvim_buf_set_var(0, 'rimels_last_entry', entries[1].completion_item)
           cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = true}
         end
       end
@@ -275,9 +277,9 @@ M.keymaps["<Space>"] = cmp.mapping(function(fallback)
       vim.fn.feedkeys " "
     end
   elseif M.input_method_take_effect(first_entry) then
-    -- 临时解决 * 和 [ 被错误吃掉的问题
     local input_code = get_input_code(first_entry)
     local cmp_result = get_cmp_result(first_entry)
+    -- 临时解决 * 和 [ 被错误吃掉的问题
     local special_symbol_pattern = '[`*%[%]{}]'
     local other_symbol_pattern   = '[^`*%[%]{}]'
     if input_code:match(special_symbol_pattern .. ".") then
@@ -289,7 +291,7 @@ M.keymaps["<Space>"] = cmp.mapping(function(fallback)
       end
       first_entry.completion_item.textEdit.newText = prefix .. cmp_result
     end
-    vim.api.nvim_buf_set_var(0, 'rimels_last_entry', {input = input_code, cmp = cmp_result})
+    vim.api.nvim_buf_set_var(0, 'rimels_last_entry', first_entry.completion_item)
     cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = true }
   else
     M.autotoggle_space()

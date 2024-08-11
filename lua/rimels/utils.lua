@@ -2,6 +2,14 @@ local M = {}
 local global_rime_status =  "nvim_rime#global_rime_enabled"
 local buffer_rime_status =  "buf_rime_enabled"
 
+local feedkey = function(key, mode)
+  vim.api.nvim_feedkeys(
+    vim.api.nvim_replace_termcodes(key, true, true, true),
+    mode,
+    false
+  )
+end
+
 function M.buf_attach_rime_ls(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
 
@@ -152,19 +160,25 @@ function M.create_inoremap_undo(key)
   end
   vim.keymap.set("i", key, function()
     if vim.fn.exists('b:rimels_last_entry') == 0 then return fallback() end
-    local entry = vim.api.nvim_buf_get_var(0, 'rimels_last_entry')
-    if not entry.input or not entry.cmp then return fallback() end
     if require('cmp').visible() then return fallback() end
+    local entry = vim.api.nvim_buf_get_var(0, 'rimels_last_entry')
+    if
+      not entry.filterText or not entry.textEdit or not entry.textEdit.newText
+      or vim.fn.line('.') ~= entry.textEdit.range['end'].line + 1
+    then
+      return fallback()
+    end
+    local text_cmp = entry.textEdit.newText
+    local text_input = entry.filterText
 
     local content_before = M.get_content_before_cursor(0) or ""
-    if not content_before:match(entry.cmp .. '$') then return fallback() end
-    local char_num = vim.fn.strchars(entry.cmp)
-    if char_num == 1 then
-      vim.cmd("normal! dl")
-    else
-      vim.cmd("normal! d" .. char_num - 1 .. "h")
+    if not content_before:match(text_cmp .. '$') then return fallback() end
+    local char_num = vim.fn.strchars(text_cmp)
+    for _ = 1, char_num do
+      feedkey("<BS>", "n")
     end
-    vim.api.nvim_put({entry.input}, "c", true, true)
+    text_input = text_input:gsub(".*_", "")
+    vim.schedule(function() vim.api.nvim_put({text_input}, "c", false, true) end)
   end, {desc = "rimels: undo last completion", noremap = true, buffer = true})
 end
 
