@@ -11,7 +11,7 @@ function M.probe_temporarily_disabled()
   end
 end
 
-function M.caps_start()
+function M.probe_caps_start()
   if utils.get_content_before_cursor():match "[A-Z][%w]*%s*$" then
     return REJECT
   else
