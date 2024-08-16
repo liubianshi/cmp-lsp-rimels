@@ -22,6 +22,10 @@ local get_cmp_result = function(entry)
     return entry.completion_item.textEdit.newText
 end
 
+local is_eol = function()
+  return (vim.fn.col('.') == vim.fn.col('$'))
+end
+
 local is_rime_entry = function(entry)
   return entry ~= nil
     and vim.tbl_get(entry, "source", "name") == "nvim_lsp"
@@ -185,39 +189,44 @@ for numkey = 0, 9 do
   M.keymaps[numkey_str] = cmp.mapping(function(fallback)
     if not cmp.visible() or not utils.buf_rime_enabled() then
       return fallback()
-    else
-      local first_entry = get_first_entry()
-      if
-        not M.input_method_take_effect(
-          first_entry,
-          { "probe_punctuation_after_half_symbol" }
-        )
-      then
-        return fallback()
-      end
     end
 
     -- close the cmp menu when 0 is pressed and all entries are from rime-ls
     if numkey == 0 then
       fallback()
-      local entries = cmp.core.view:get_entries()
-      for _, entry in ipairs(entries) do
-        if not is_rime_entry(entry) then
-          return
+      return vim.schedule(function()
+        local entries = cmp.get_entries()
+        for _, entry in ipairs(entries) do
+          if not is_rime_entry(entry) then
+            return
+          end
         end
-      end
-      return cmp.close()
+        cmp.close()
+      end)
     end
 
-    local entries = cmp.get_entries()
-    if not is_rime_entry(entries[numkey]) then
-      return fallback()
-    end
-    for _ = 1, numkey do
-      cmp.select_next_item { behavior = cmp.SelectBehavior.Select }
-    end
-    cmp.confirm { behavior = cmp.ConfirmBehavior.Insert }
-    vim.api.nvim_buf_set_var(0, 'rimels_last_entry', entries[numkey].completion_item)
+    feedkey(numkey_str, "n")
+    return vim.schedule(function()
+      if not cmp.visible() then return end
+      local entries = cmp.get_entries() or {}
+      local rime_entry_id = 0
+      for id, entry in ipairs(entries) do
+        if is_rime_entry(entry) then
+          if rime_entry_id ~= 0 then
+            return
+          end
+          rime_entry_id = id
+        end
+      end
+
+      if rime_entry_id == 0 then return end
+      for _ = 1, rime_entry_id do
+        cmp.select_next_item { behavior = cmp.SelectBehavior.Select }
+      end
+
+      vim.api.nvim_buf_set_var(0, 'rimels_last_entry', entries[rime_entry_id].completion_item)
+      cmp.confirm { behavior = cmp.ConfirmBehavior.Insert }
+    end)
   end, { "i" })
 end
 
@@ -279,11 +288,11 @@ M.keymaps["<Space>"] = cmp.mapping(function(fallback)
   elseif M.input_method_take_effect(first_entry) then
     local input_code = get_input_code(first_entry)
     local cmp_result = get_cmp_result(first_entry)
-    -- 临时解决 * 和 [ 被错误吃掉的问题
-    local special_symbol_pattern = '[`*%[%]{}]'
-    local other_symbol_pattern   = '[^`*%[%]{}]'
-    if input_code:match(special_symbol_pattern .. ".") then
-      local pattern = string.format("^(.*%s)%s+$", special_symbol_pattern, other_symbol_pattern)
+    -- 临时解决 * 和 [ 被错误吃掉的问题，会跟随 rime-ls 的更新调整
+    local special_symbol_pattern = '[%[%]{}]'
+    local other_symbol_pattern   = '[^%[%]{}]'
+    if input_code:match(special_symbol_pattern .. '[A-Za-z]') then
+      local pattern = string.format("^.*(%s)%s+$", special_symbol_pattern, other_symbol_pattern)
       local prefix = input_code:gsub(pattern, "%1")
       if prefix:sub(1,1) == prefix:sub(2,2) and prefix:sub(1,1):match(special_symbol_pattern)
       then
@@ -344,7 +353,11 @@ M.keymaps["["] = cmp.mapping(function(fallback)
     local text = entry.completion_item.textEdit.newText
     text = vim.fn.split(text, "\\zs")[1]
     cmp.abort()
-    vim.cmd [[normal diw]]
+    if is_eol() then
+      vim.cmd [[normal diw]]
+    else
+      vim.cmd [[normal hdiwh]]
+    end
     vim.api.nvim_put({ text }, "c", true, true)
   elseif select_entry then
     cmp.confirm()
@@ -372,7 +385,11 @@ M.keymaps["]"] = cmp.mapping(function(fallback)
     text = vim.fn.split(text, "\\zs")
     text = text[#text]
     cmp.abort()
-    vim.cmd [[normal diw]]
+    if is_eol() then
+      vim.cmd [[normal diw]]
+    else
+      vim.cmd [[normal hdiwh]]
+    end
     vim.api.nvim_put({ text }, "c", true, true)
   elseif select_entry then
     cmp.confirm()

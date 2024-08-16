@@ -143,7 +143,7 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
 - `brackets`, 以词定字  
 - `backspace`, 删除键自动切换输入法
 - `punctuation_upload_directly`, 部分标点符号在候选词只有唯一对应的中文标点符号时
-  直接上屏。默认支持 `{",", ".", ":", "\\", "?"}`。设置为 `true` 时，禁用此功能，也
+  直接上屏。默认支持 `{",", ".", ":", "\\", "?", "!"}`。设置为 `true` 时，禁用此功能，也
   可以选择禁用部分标点，如 `punctuation_upload_directly = {":", "?"}`
 
 例如, 禁用通过 `[` 和 `]` 实现的以词定字功能, 可采用如下设置: 

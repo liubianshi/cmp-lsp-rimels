@@ -28,7 +28,7 @@ local M = {
     with_treesitter = {},
     with_syntax = {},
   },
-  punctuation_upload_directly = {",", ".", ":", "\\", "?"},
+  punctuation_upload_directly = {",", ".", ":", "\\", "?", "!"},
   cmp_keymaps = {
     disable = {
       space     = false,
