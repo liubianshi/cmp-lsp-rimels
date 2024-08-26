@@ -119,15 +119,17 @@ end
 
 function M.create_inoremap_start_rime(client, key)
   vim.keymap.set("i", key, function()
-    vim.cmd "stopinsert"
     if not M.global_rime_enabled() then
       M.toggle_rime(client)
     end
     if not M.buf_rime_enabled() then
       M.buf_toggle_rime(0, true)
     end
-    vim.fn.feedkeys("a", "n")
-  end, { desc = "Start Chinese Input Method", noremap = true, buffer = true })
+  end, {
+    desc = "Start Chinese Input Method",
+    noremap = true,
+    buffer = true,
+  })
 end
 
 function M.create_inoremap_stop_rime(client, key)
@@ -135,14 +137,16 @@ function M.create_inoremap_stop_rime(client, key)
     "i",
     key,
     function()
-      vim.cmd "stopinsert"
+      local cmp = require('cmp')
+      if cmp.visible() then
+        cmp.abort()
+      end
       if M.global_rime_enabled() then
         M.toggle_rime(client)
       end
       if M.buf_rime_enabled() then
         M.buf_toggle_rime(0, true)
       end
-      vim.fn.feedkeys("a", "n")
     end,
     {
       desc = "Stop Chinese Input Method",
