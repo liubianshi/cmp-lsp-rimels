@@ -319,9 +319,11 @@ M.keymaps["<CR>"] = cmp.mapping(function(fallback)
       utils.toggle_rime()
     end
     cmp.abort()
-    vim.fn.feedkeys(" ", "n")
+    feedkey(" ", "n")
+  elseif select_entry and select_entry.source.name ~= "nvim_lsp_signature_help" then
+    return cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = true }
   else
-    fallback()
+    cmp.abort()
   end
 end, { "i", "s" })
 
