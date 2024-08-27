@@ -2,9 +2,6 @@ local cmp         = require "cmp"
 local cmp_config  = require('cmp.config').get()
 local utils       = require "rimels.utils"
 local default_opts = require "rimels.default_opts"
-local langs_not_support_named_parameters = {
-  "bash", "sh", "lua", "perl", "vim"
-}
 local punctuation_upload_directly = default_opts.punctuation_upload_directly
 local feedkey = function(key, mode)
   vim.api.nvim_feedkeys(
@@ -125,6 +122,7 @@ function M.autotoggle_backspace()
 end
 
 function M.autotoggle_space()
+  if not utils.buf_rime_enabled() then return end
   local rc = { not_toggle = 0, toggle_off = 1, toggle_on = 2 }
   if not utils.buf_rime_enabled() or M.in_english_environment() then
     return rc.not_toggle
@@ -275,17 +273,13 @@ M.keymaps["<Space>"] = cmp.mapping(function(fallback)
       select_entry.source.name == "nvim_lsp"
       and select_entry.source.source.client.name == "rime_ls"
     then
-      cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = false }
-    elseif
-      select_entry.source.name == "nvim_lsp_signature_help"
-      and vim.fn.index(langs_not_support_named_parameters, vim.bo.filetype) >= 0
-    then
-      return fallback()
+      return cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = false }
     else
-      cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = false }
-      vim.fn.feedkeys " "
+      return fallback()
     end
-  elseif M.input_method_take_effect(first_entry) then
+  end
+
+  if M.input_method_take_effect(first_entry) then
     local input_code = get_input_code(first_entry)
     local cmp_result = get_cmp_result(first_entry)
     -- 临时解决 * 和 [ 被错误吃掉的问题，会跟随 rime-ls 的更新调整
@@ -301,11 +295,11 @@ M.keymaps["<Space>"] = cmp.mapping(function(fallback)
       first_entry.completion_item.textEdit.newText = prefix .. cmp_result
     end
     vim.api.nvim_buf_set_var(0, 'rimels_last_entry', first_entry.completion_item)
-    cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = true }
-  else
-    M.autotoggle_space()
-    return fallback()
+    return cmp.confirm { behavior = cmp.ConfirmBehavior.Insert, select = true }
   end
+
+  M.autotoggle_space()
+  return fallback()
 end, { "i", "s" })
 
 -- <CR> ----------------------------------------------------------------- {{{3
