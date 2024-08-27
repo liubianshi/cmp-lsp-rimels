@@ -156,8 +156,6 @@ function M.autotoggle_space()
   end
 end
 
-
-
 function M.input_method_take_effect(entry, probes_ignored)
   if not entry then
     return false
@@ -322,8 +320,6 @@ M.keymaps["<CR>"] = cmp.mapping(function(fallback)
     end
     cmp.abort()
     vim.fn.feedkeys(" ", "n")
-  elseif select_entry then
-    cmp.confirm()
   else
     fallback()
   end
@@ -353,8 +349,6 @@ M.keymaps["["] = cmp.mapping(function(fallback)
       vim.cmd [[normal hdiwh]]
     end
     vim.api.nvim_put({ text }, "c", true, true)
-  elseif select_entry then
-    cmp.confirm()
   else
     fallback()
   end
@@ -385,8 +379,6 @@ M.keymaps["]"] = cmp.mapping(function(fallback)
       vim.cmd [[normal hdiwh]]
     end
     vim.api.nvim_put({ text }, "c", true, true)
-  elseif select_entry then
-    cmp.confirm()
   else
     fallback()
   end
