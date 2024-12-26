@@ -120,7 +120,14 @@ end
 function M.create_inoremap_start_rime(client, key)
   vim.keymap.set("i", key, function()
     if not M.global_rime_enabled() then
+      vim.cmd.stopinsert()
       M.toggle_rime(client)
+      vim.schedule(function()
+        vim.cmd.startinsert()
+        if vim.fn.col('.') ~= vim.fn.col('$') then
+          feedkey("<right>", "n")
+        end
+      end)
     end
     if not M.buf_rime_enabled() then
       M.buf_toggle_rime(0, true)
