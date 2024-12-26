@@ -11,11 +11,23 @@ if status_ok then
   capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
 end
 
-local utils        = require "rimels.utils"
+-- Fix: Offset-Encoding issue since Neovim v0.10.2 #38
+-- https://github.com/wlh320/rime-ls/issues/38#issuecomment-2559780016
+if vim.fn.has "nvim-0.10.2" == 1 and vim.fn.has "nvim-0.11.0" == 0 then
+  if capabilities.general then
+    capabilities.general.positionEncodings = { "utf-8" }
+  else
+    capabilities.general = {
+      positionEncodings = { "utf-8" },
+    }
+  end
+end
+
+local utils = require "rimels.utils"
 local default_opts = require "rimels.default_opts"
-local probes       = require "rimels.probes"
-local detectors    = require "rimels.english_environment_detectors"
-local cmp_keymaps  = require("rimels.cmp_keymaps")
+local probes = require "rimels.probes"
+local detectors = require "rimels.english_environment_detectors"
+local cmp_keymaps = require "rimels.cmp_keymaps"
 
 local update_option = function(default, user)
   if not (user and next(user)) then
@@ -37,40 +49,50 @@ local update_option = function(default, user)
         updated_default[key] = user[key]
       end
     else
-      updated_default[key] = value  -- 如果 user 表格中没有对应 key，则保持默认值不变
+      updated_default[key] = value -- 如果 user 表格中没有对应 key，则保持默认值不变
     end
   end
 
   return updated_default
 end
 
-local start_rime_ls = function()
-    vim.cmd "stopinsert"
-    local bufnr = vim.api.nvim_get_current_buf()
-    local client = utils.buf_get_rime_ls_client(bufnr)
+local function start_rime_ls(iters)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local client = utils.buf_get_rime_ls_client(bufnr)
+  vim.cmd "stopinsert"
 
-    if not client then
-      utils.buf_attach_rime_ls(bufnr)
-      client = utils.buf_get_rime_ls_client(bufnr)
+  if not client then
+    utils.buf_attach_rime_ls(bufnr)
+    -- Solve the problem that the input method cannot take effect immediately
+    -- when starting for the first time
+    iters = iters or 0
+    if iters <= 100 then
+      vim.schedule(function()
+        start_rime_ls(iters + 1)
+      end)
     end
+    return
+  end
 
-    if not utils.global_rime_enabled() then
-      utils.toggle_rime(client)
-    end
+  if not utils.global_rime_enabled() then
+    utils.toggle_rime(client)
+  end
 
-    if not utils.buf_rime_enabled() then
-      utils.buf_toggle_rime(bufnr, true)
-    end
+  if not utils.buf_rime_enabled() then
+    utils.buf_toggle_rime(bufnr, true)
+  end
 
-    vim.fn.feedkeys("a", "n")
+  vim.fn.feedkeys("a", "n")
 end
 
 local M = {}
 
 function M.setup(opts)
-  local lspconfig    = require "lspconfig"
-  local configs      = require "lspconfig.configs"
-  if M.get_rime_ls_client() then return M.opts end
+  local lspconfig = require "lspconfig"
+  local configs = require "lspconfig.configs"
+  if M.get_rime_ls_client() then
+    return M.opts
+  end
   opts = update_option(default_opts, opts or {})
 
   for name, probe in pairs(probes) do
@@ -79,11 +101,8 @@ function M.setup(opts)
     end
   end
 
-  opts.probes.using = vim.tbl_extend(
-    "force",
-    opts.probes.using,
-    opts.probes.add
-  )
+  opts.probes.using =
+    vim.tbl_extend("force", opts.probes.using, opts.probes.add)
 
   opts.detectors = {
     with_treesitter = vim.tbl_extend(
@@ -163,7 +182,7 @@ function M.setup(opts)
 end
 
 function M.get_rime_ls_client()
-  local client = vim.lsp.get_clients({name = 'rime_ls'})
+  local client = vim.lsp.get_clients { name = "rime_ls" }
   if #client == 0 then
     return nil
   else
