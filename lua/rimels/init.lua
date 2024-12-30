@@ -1,14 +1,19 @@
 local cmp_ok, cmp = pcall(require, "cmp")
-if not cmp_ok then
-  vim.notify("nvim-cmp not installed", vim.log.levels.ERROR)
+local blink_ok, blink = pcall(require, "blink.cmp")
+if not cmp_ok and not blink_ok then
+  vim.notify("nvim-cmp and blink.cmp are not installed", vim.log.levels.ERROR)
   error()
 end
 
 -- nvim-cmp supports additional completion capabilities, so broadcast that to servers
 local capabilities = vim.lsp.protocol.make_client_capabilities()
-local status_ok, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
-if status_ok then
-  capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
+if blink_ok then
+  capabilities = blink.get_lsp_capabilities()
+else
+  local status_ok, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
+  if status_ok then
+    capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
+  end
 end
 
 -- Fix: Offset-Encoding issue since Neovim v0.10.2 #38
@@ -28,6 +33,7 @@ local default_opts = require "rimels.default_opts"
 local probes = require "rimels.probes"
 local detectors = require "rimels.english_environment_detectors"
 local cmp_keymaps = require "rimels.cmp_keymaps"
+local defined_keymaps = {}
 
 local update_option = function(default, user)
   if not (user and next(user)) then
@@ -51,6 +57,12 @@ local update_option = function(default, user)
     else
       updated_default[key] = value -- 如果 user 表格中没有对应 key，则保持默认值不变
     end
+  end
+
+  if blink_ok then
+    updated_default.long_filter_text = true
+    updated_default.cmp_keymaps.disable.numbers = true
+    updated_default.cmp_keymaps.disable.punctuation_upload_directly = true
   end
 
   return updated_default
@@ -80,6 +92,14 @@ local function start_rime_ls(iters)
 
   if not utils.buf_rime_enabled() then
     utils.buf_toggle_rime(bufnr, true)
+  end
+
+  if blink_ok then
+    local show_emitter = require('blink.cmp.completion.list').show_emitter
+    if not vim.tbl_contains(show_emitter.listeners, function(cb) return cb == utils.blink_showup_callback end)
+    then
+      show_emitter:on(utils.blink_showup_callback)
+    end
   end
 
   vim.fn.feedkeys("a", "n")
@@ -150,6 +170,7 @@ function M.setup(opts)
       user_data_dir = opts.user_data_dir or opts.rime_user_dir,
       log_dir = opts.rime_user_dir .. "/log",
       max_candidates = opts.max_candidates,
+      long_filter_text = opts.long_filter_text,
       trigger_characters = opts.trigger_characters,
       schema_trigger_character = opts.schema_trigger_character,
       always_incomplete = opts.always_incomplete,
@@ -166,7 +187,10 @@ function M.setup(opts)
   }).keymaps
   keymaps = utils.filter_cmp_keymaps(keymaps, opts.cmp_keymaps.disable)
   if next(keymaps) then
-    cmp.setup { mapping = cmp.mapping.preset.insert(keymaps) }
+    defined_keymaps = keymaps
+    if cmp_ok then
+      cmp.setup { mapping = cmp.mapping.preset.insert(keymaps) }
+    end
   end
 
   vim.keymap.set({ "i" }, opts.keys.start, start_rime_ls, {
@@ -179,6 +203,10 @@ function M.setup(opts)
 
   M.opts = opts
   return M.opts
+end
+
+function M.get_keymaps()
+  return defined_keymaps
 end
 
 function M.get_rime_ls_client()

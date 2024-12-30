@@ -7,6 +7,7 @@ local M = {
   shared_data_dir = "/usr/share/rime-data",
   paging_characters = {",", ".", "-", "="},
   trigger_characters = {},
+  long_filter_text = false,
   always_incomplete = false,
   docs = {
     description = [[https://www.github.com/wlh320/rime-ls, A language server for librime]],
