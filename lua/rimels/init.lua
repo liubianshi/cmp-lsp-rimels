@@ -4,11 +4,12 @@ if not cmp_ok and not blink_ok then
   vim.notify("nvim-cmp and blink.cmp are not installed", vim.log.levels.ERROR)
   error()
 end
+if blink_ok then cmp_ok = false end
 
 -- nvim-cmp supports additional completion capabilities, so broadcast that to servers
 local capabilities = vim.lsp.protocol.make_client_capabilities()
 if blink_ok then
-  capabilities = blink.get_lsp_capabilities()
+  capabilities = blink.get_lsp_capabilities(capabilities)
 else
   local status_ok, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
   if status_ok then

@@ -9,7 +9,7 @@ if not cmp_ok and not blink_ok then
   vim.notify("nvim-cmp and blink.cmp are not installed", vim.log.levels.ERROR)
   error()
 end
-
+if blink_ok then cmp_ok = false end
 function M.blink_showup_callback(event)
   local bufnr = vim.api.nvim_get_current_buf()
   if not M.buf_rime_enabled(bufnr) then return end
