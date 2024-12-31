@@ -72,8 +72,8 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
 }
 ```
 
-如果使用的补全框架为 [blink.cmp][9], 那么需要在 [blink.cmp] 时，手动加入
-`cmp-lsp-rimels` 配置的 kepmap：
+如果使用的补全框架为 [blink.cmp][9], 那么需要在配置 [blink.cmp][9] 时，手动加入 `cmp-lsp-rimels` 的 `kepmaps`，
+并修改默认的 LSP 过滤规则。
 
 ```lua
 {
