@@ -9,7 +9,7 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
 项目目前不算稳定。测试主要来自本人在 MacOS 和 ArchLinux 上的日常使用，能正常运行。
 从 [#1][8] 看项目在 Windows 下应该也能运行。
 
-如果您熟悉 [nvim-cmp][1] 和 [wlh320/rime-ls][2]，
+如果您熟悉 [nvim-cmp][1]、[blink.cmp][9] 和 [wlh320/rime-ls][2]，
 那么还是建议只将本项目视为自己配置的参考。
 
 ## 特点
@@ -37,9 +37,8 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
 
 ## 依赖
 
-- [wlh320/rime-ls][2]: A language server for Rime input method engine
-- [hrsh7th/nvim-cmp][1]: A completion plugin for neovim coded in Lua.
-- [hrsh7th/cmp-nvim-lsp][6]: nvim-cmp source for neovim builtin LSP client
+- [wlh320/rime-ls][2]
+- ([hrsh7th/nvim-cmp][1] + [hrsh7th/cmp-nvim-lsp][6]) / [Saghen/blink.cmp][9]
 - [neovim/nvim-lspconfig][7]: Quickstart configs for Nvim LSP
 
 ## 安装
@@ -50,6 +49,7 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
 {
   "liubianshi/cmp-lsp-rimels",
   keys = {{"<localleader>f", mode = "i"}},
+  branch = "blink.cmp",
   config = function()
     require('rimels').setup({})
   end,
@@ -62,12 +62,45 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
 {
   "liubianshi/cmp-lsp-rimels",
   keys = {{"<localleader>f", mode = "i"}},
+  branch = "blink.cmp",
   config = function()
-    vim.system({'rime_ls', '--listen', '127.0.0.1:9257'})
+    vim.system({'rime_ls', '--listen', '127.0.0.1:9257'}, {detach = true})
     require('rimels').setup({
       cmd = vim.lsp.rpc.connect("127.0.0.1", 9257),
     })
   end,
+}
+```
+
+如果使用的补全框架为 [blink.cmp][9], 那么需要在 [blink.cmp] 时，手动加入
+`cmp-lsp-rimels` 配置的 kepmap：
+
+```lua
+{
+  keymap = vim.tbl_extend(
+    "force",
+    { preset = 'default' },
+    require('rimels').get_keymaps()
+  ),
+  -- 参考：https://github.com/wlh320/rime-ls/blob/master/doc/nvim-with-blink.md
+  sources = {
+    -- ...
+    providers = {
+      lsp = {
+        transform_items = function(_, items)
+          -- the default transformer will do this
+          for _, item in ipairs(items) do
+            if item.kind == require('blink.cmp.types').CompletionItemKind.Snippet then
+              item.score_offset = item.score_offset - 3
+            end
+          end
+          -- you can define your own filter for rime item
+          return items
+        end
+      }
+    },
+    -- ...
+  }
 }
 ```
 
@@ -84,7 +117,7 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
 
 如果希望连续英文单词呢？多数情况下，需要我们手动切换到英文输入法，除非，您
 的光标后面有一个半角字符。在已自动切换到英文输入状态，且处在 `(|)` 情况下（`|` 为光标位置），
-连续输入 `cmp and rime` 时无须手动切换到英文输入法。 
+连续输入 `cmp and rime` 时无须手动切换到英文输入法。
 
 采用类似的思路，`<backspace>` 键也被做了一定的修改，主要实现的功能是在删除空格时根
 据前面的字符自动切换输入法。如果前面的字符是英文，那么会将输入法切换到英文输入
@@ -140,13 +173,13 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
 - `space`, 空格键自动切换输入法, 以及当第一个候选字由 rime_ls 返回时上屏该候选词
 - `numbers`, 数字键直接上屏
 - `enter`, 回车键放弃补全
-- `brackets`, 以词定字  
+- `brackets`, 以词定字
 - `backspace`, 删除键自动切换输入法
 - `punctuation_upload_directly`, 部分标点符号在候选词只有唯一对应的中文标点符号时
   直接上屏。默认支持 `{",", ".", ":", "\\", "?", "!"}`。设置为 `true` 时，禁用此功能，也
   可以选择禁用部分标点，如 `punctuation_upload_directly = {":", "?"}`
 
-例如, 禁用通过 `[` 和 `]` 实现的以词定字功能, 可采用如下设置: 
+例如, 禁用通过 `[` 和 `]` 实现的以词定字功能, 可采用如下设置:
 
 ```lua
 {
@@ -164,9 +197,9 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
 例如，输入 `Ax` 后，rime_ls 会返回候选词，但因为探针 `probe_caps_start` 的存在，
 此时按空格不会上屏 rime_ls 的候选词。默认开启的探针包括如下几个：
 
-- `probe_temporarily_disabled`: 是否临时禁用 `rime_ls` 
+- `probe_temporarily_disabled`: 是否临时禁用 `rime_ls`
 - `probe_caps_start`: 开头是否为大写字母
-- `probe_punctuation_after_half_symbol`: 是否在英文字符后面输入标点符号 
+- `probe_punctuation_after_half_symbol`: 是否在英文字符后面输入标点符号
 - `probe_in_mathblock`: 是否正在输入公式
 
 可以通过 `probes.ignore` 禁用部分探针，或者使用 `probes.add` 覆盖旧探针或增加新探针。
@@ -179,7 +212,7 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
     local info = vim.inspect_pos()
     for _, syn in ipairs(info.syntax) do
       if syn.hl_group_link:match "mathblock" then
-        return true 
+        return true
       end
     end
     for _, ts in ipairs(info.treesitter) do
@@ -187,7 +220,7 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
         return true
       end
     end
-    return false 
+    return false
   end
 }
 ```
@@ -229,7 +262,7 @@ end
   "liubianshi/cmp-lsp-rimels",
   keys = {{"<localleader>f", mode = "i"}},
   config = function()
-    vim.system({'rime_ls', '--listen', '127.0.0.1:9257'})
+    vim.system({'rime_ls', '--listen', '127.0.0.1:9257'}, {detach = true})
     require('rimels').setup({
       cmd = vim.lsp.rpc.connect("127.0.0.1", 9257),
       detectors = {
@@ -251,3 +284,4 @@ end
 [6]: https://github.com/hrsh7th/cmp-nvim-lsp
 [7]: https://github.com/neovim/nvim-lspconfig
 [8]: https://github.com/liubianshi/cmp-lsp-rimels/issues/1
+[9]: https://github.com/Saghen/blink.cmp
