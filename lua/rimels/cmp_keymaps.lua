@@ -1,8 +1,8 @@
-local utils       = require "rimels.utils"
+local utils = require "rimels.utils"
 local default_opts = require "rimels.default_opts"
 local punctuation_upload_directly = default_opts.punctuation_upload_directly
 
-local M = {keymaps = utils.get_mappings()}
+local M = { keymaps = utils.get_mappings() }
 
 ---@class Keymap_setup_opts
 ---@field detectors table
@@ -25,22 +25,23 @@ function M:setup(opts)
   function self.in_english_environment()
     local detect_english_env = opts.detectors
     local info = vim.inspect_pos()
-    local filetype = vim.api.nvim_get_option_value("filetype", {scope = "local"})
+    local filetype =
+      vim.api.nvim_get_option_value("filetype", { scope = "local" })
 
     if not filetype or filetype == "" then
       return false
     end
 
     if
-      detect_english_env.with_treesitter[filetype] and
-      detect_english_env.with_treesitter[filetype](info)
+      detect_english_env.with_treesitter[filetype]
+      and detect_english_env.with_treesitter[filetype](info)
     then
       return true
     end
 
     if
-      detect_english_env.with_syntax[filetype] and
-      detect_english_env.with_syntax[filetype](info)
+      detect_english_env.with_syntax[filetype]
+      and detect_english_env.with_syntax[filetype](info)
     then
       return true
     end
@@ -86,7 +87,9 @@ function M.autotoggle_backspace()
 end
 
 function M.autotoggle_space()
-  if not utils.buf_rime_enabled() then return end
+  if not utils.buf_rime_enabled() then
+    return
+  end
   local rc = { not_toggle = 0, toggle_off = 1, toggle_on = 2 }
   if not utils.buf_rime_enabled() or M.in_english_environment() then
     return rc.not_toggle
@@ -101,7 +104,7 @@ function M.autotoggle_space()
   -- 在英文输入状态下，如果光标后为英文符号，则不切换成中文输入状态
   -- 例如：(abc|)
   local char_after = utils.get_chars_after_cursor(1)
-  if not utils.global_rime_enabled() and char_after:match("[!-~]") then
+  if not utils.global_rime_enabled() and char_after:match "[!-~]" then
     return rc.not_toggle
   end
 
@@ -163,9 +166,11 @@ for numkey = 0, 9 do
 
     utils.feedkey(numkey_str, "n")
     vim.schedule(function()
-      if not utils.is_cmp_visible() then return end
+      if not utils.is_cmp_visible() then
+        return
+      end
       local entries = utils.get_entries() or {}
-      local rime_entry_id = utils.get_rime_entry_ids(entries, {only = true})
+      local rime_entry_id = utils.get_rime_entry_ids(entries, { only = true })
       if rime_entry_id then
         utils.cmp_select_nth(rime_entry_id)
       end
@@ -185,7 +190,9 @@ for _, symbol in ipairs(punctuation_upload_directly) do
     -- dd(utils.fallback(fallback, symbol)
 
     vim.schedule(function()
-      if not utils.is_cmp_visible() then return end
+      if not utils.is_cmp_visible() then
+        return
+      end
       local entries = utils.get_entries()
       utils.cmp_confirm_punction(entries)
     end)
@@ -196,7 +203,7 @@ end
 
 -- <Space> -------------------------------------------------------------- {{{3
 M.keymaps["<Space>"] = utils.generate_mapping(function(fallback)
-  pcall(vim.api.nvim_buf_del_var, 0, 'rimels_last_entry')
+  pcall(vim.api.nvim_buf_del_var, 0, "rimels_last_entry")
   if not utils.is_cmp_visible() then
     M.autotoggle_space()
     return utils.fallback(fallback)
@@ -205,31 +212,22 @@ M.keymaps["<Space>"] = utils.generate_mapping(function(fallback)
   local first_entry = utils.get_first_entry()
 
   if select_entry then
-    if
-      utils.is_rime_entry(select_entry)
-    then
+    if utils.is_rime_entry(select_entry) then
       utils.cmp_confirm(false)
     else
+      M.autotoggle_space()
       return utils.fallback(fallback)
     end
   end
 
   if M.input_method_take_effect(first_entry) then
-    local input_code = utils.get_input_code(first_entry)
-    local cmp_result = utils.get_cmp_result(first_entry)
-    -- 临时解决 * 和 [ 被错误吃掉的问题，会跟随 rime-ls 的更新调整
-    local special_symbol_pattern = '[%[%]{}]'
-    local other_symbol_pattern   = '[^%[%]{}]'
-    if input_code:match(special_symbol_pattern .. '[A-Za-z]') then
-      local pattern = string.format("^.*(%s)%s+$", special_symbol_pattern, other_symbol_pattern)
-      local prefix = input_code:gsub(pattern, "%1")
-      if prefix:sub(1,1) == prefix:sub(2,2) and prefix:sub(1,1):match(special_symbol_pattern)
-      then
-        prefix = prefix:sub(2)
-      end
-      local new_entry = utils.transform_result(first_entry, prefix .. cmp_result)
-      if new_entry then
-        first_entry = new_entry
+    local new_result = utils.adjust_for_rimels(first_entry)
+    if new_result then
+      if utils.blink() then
+        first_entry.label = new_result
+      elseif utils.cmp() then
+        --- @diagnostic disable-next-line undefined-field
+        first_entry.completion_item.textEdit.newText = new_result
       end
     end
     utils.set_last_entry(first_entry)
@@ -260,7 +258,10 @@ M.keymaps["<CR>"] = utils.generate_mapping(function(fallback)
     end
     utils.cmp_close()
     utils.feedkey(" ", "n")
-  elseif select_entry and utils.get_cmp_source_name(select_entry) ~= "nvim_lsp_signature_help" then
+  elseif
+    select_entry
+    and utils.get_cmp_source_name(select_entry) ~= "nvim_lsp_signature_help"
+  then
     return utils.cmp_confirm(true)
   else
     return utils.cmp_close()
@@ -288,7 +289,8 @@ M.keymaps["["] = utils.generate_mapping(function(fallback)
     text = vim.fn.split(text, "\\zs")[1]
     utils.cmp_abort()
     vim.schedule(function()
-      local input = utils.get_input_code(entry):gsub("[^\1-\127]*([\1-\127]+)$", "%1")
+      local input =
+        utils.get_input_code(entry):gsub("[^\1-\127]*([\1-\127]+)$", "%1")
       vim.api.nvim_put({ text }, "c", true, true)
       utils.feedkey("<left>", "n")
       for _ = 1, input:len() do
@@ -324,7 +326,8 @@ M.keymaps["]"] = utils.generate_mapping(function(fallback)
     utils.cmp_abort()
 
     vim.schedule(function()
-      local input = utils.get_input_code(entry):gsub("[^\1-\127]*([\1-\127]+)$", "%1")
+      local input =
+        utils.get_input_code(entry):gsub("[^\1-\127]*([\1-\127]+)$", "%1")
       vim.api.nvim_put({ text }, "c", true, true)
       utils.feedkey("<left>", "n")
       for _ = 1, input:len() do
@@ -355,5 +358,45 @@ M.keymaps["<BS>"] = utils.generate_mapping(function(fallback)
 
   return utils.cmp_without_processing()
 end, { "i", "s" })
+
+function M:launch(disable)
+  local mappings = utils.filter_cmp_keymaps(self.keymaps, disable or {})
+  if not next(mappings) then
+    return
+  end
+  local cmp = utils.cmp()
+  if cmp then
+    local insert = vim.tbl_get(cmp, "mapping", "preset", "insert")
+    cmp.setup { mapping = insert(mappings) }
+    return mappings
+  end
+
+  mappings = utils.filter_cmp_keymaps(mappings, {
+    numbers = true,
+    punctuation_upload_directly = true,
+  })
+
+  if not next(mappings) then
+    return
+  end
+
+  vim.api.nvim_create_autocmd("InsertEnter", {
+    callback = function()
+      if not require("blink.cmp.config").enabled() then
+        return
+      end
+      utils.blink_apply_keymap(mappings)
+    end,
+  })
+
+  if
+    vim.api.nvim_get_mode().mode == "i"
+    and require("blink.cmp.config").enabled()
+  then
+    utils.blink_apply_keymap(mappings)
+  end
+
+  return mappings
+end
 
 return M

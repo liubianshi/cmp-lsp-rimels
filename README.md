@@ -77,11 +77,6 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
 
 ```lua
 {
-  keymap = vim.tbl_extend(
-    "force",
-    { preset = 'default' },
-    require('rimels').get_keymaps()
-  ),
   -- 参考：https://github.com/wlh320/rime-ls/blob/master/doc/nvim-with-blink.md
   sources = {
     -- ...
