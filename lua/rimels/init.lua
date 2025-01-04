@@ -47,7 +47,7 @@ function M.setup(opts)
       user_data_dir = opts.user_data_dir or opts.rime_user_dir,
       log_dir = opts.rime_user_dir .. "/log",
       max_candidates = opts.max_candidates,
-      long_filter_text = opts.long_filter_text,
+      long_filter_text = utils.blink() and true or opts.long_filter_text,
       trigger_characters = opts.trigger_characters,
       schema_trigger_character = opts.schema_trigger_character,
       always_incomplete = opts.always_incomplete,

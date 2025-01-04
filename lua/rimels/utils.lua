@@ -167,15 +167,18 @@ function M.cmp_confirm(select)
 end
 
 function M.cmp_confirm_punction(entries)
-  if entries and #entries == 1 then
-    -- check character before the punctuation
-    local word_before = M.get_chars_before_cursor(2)
-    if not word_before or word_before == "" or word_before:match "[%s%w%p]" then
-      M.cmp_close()
-    else
-      M.set_last_entry(entries[1])
-      M.cmp_confirm(true)
-    end
+  local rime_id = M.get_rime_entry_ids(entries, { only = true })
+  if not rime_id then
+    return
+  end
+
+  -- check character before the punctuation
+  local word_before = M.get_chars_before_cursor(2)
+  if not word_before or word_before == "" or word_before:match "[%s%w%p]" then
+    M.cmp_close()
+  else
+    M.set_last_entry(entries[rime_id])
+    M.cmp_select_nth(rime_id)
   end
 end
 
