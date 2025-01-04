@@ -30,10 +30,11 @@ function M.blink_showup_callback(event)
     return
   end
   local context_line = vim.tbl_get(event, "context", "line")
-  if context_line == nil then
+  local cursor = vim.tbl_get(event, "context", "cursor")
+  if context_line == nil or cursor == nil then
     return
   end
-  local last_char = context_line:sub(-1, -1)
+  local last_char = context_line:sub(cursor[2], cursor[2])
 
   if last_char:match "[1-9]" then
     local rime_id = M.get_rime_entry_ids(event.items, { only = true })
