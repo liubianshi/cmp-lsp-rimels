@@ -99,6 +99,16 @@ https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-
 }
 ```
 
+此外，`blink.cmp` 的默认 `completion.keyword.regex` 为 `'[-_]\\|\\k'`, 而 `\k` 的默认值为
+`@,48-57,_,192-255`, 会导致所有的中文都是有效字符，将我个人体验看，这会严重降低输
+入法的响应速度。建议修改 `completion.keyword.regex` 或 `vim.opt.iskeyword`.
+由于 `blink.cmp` 目前不能动态设置 `completion.keyword.regex`, 所以
+我倾向于修改 `iskeyword`.
+
+```lua
+vim.opt.iskeyword = "_,49-57,A-Z,a-z"
+```
+
 ## 思路
 
 核心思路是修改空格的行为，让它根据当前场景决定自动切换到中文或英文输入状态，根
