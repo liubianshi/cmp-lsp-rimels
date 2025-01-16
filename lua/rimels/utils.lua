@@ -22,6 +22,13 @@ function M.adjust_for_rimels(entry)
   end
 end
 
+function M.blink()
+  local blink_ok, blink = pcall(require, "blink.cmp")
+  if blink_ok then
+    return blink
+  end
+end
+
 function M.blink_showup_callback(event)
   local opts = require("rimels").setup().opts
   local bufnr = vim.api.nvim_get_current_buf()
@@ -131,6 +138,40 @@ function M.buf_rime_enabled(bufnr)
   return (exist and status)
 end
 
+function M.buf_toggle_rime(bufnr, buf_only)
+  if M.buf_rime_enabled() ~= M.global_rime_enabled() or buf_only then
+    vim.api.nvim_buf_set_var(0, buffer_rime_status, not M.buf_rime_enabled())
+    return
+  end
+
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  local client = M.buf_get_rime_ls_client(bufnr)
+  if not client then
+    M.buf_attach_rime_ls(bufnr)
+    client = M.buf_get_rime_ls_client(bufnr)
+  end
+  if not client then
+    vim.notify("Failed to get rime_ls client", vim.log.levels.ERROR)
+    return
+  end
+
+  M.toggle_rime(client)
+  M.buf_toggle_rime(bufnr, true)
+end
+
+function M.cmp()
+  if M.blink() then
+    return
+  end
+  local cmp_ok, cmp = pcall(require, "cmp")
+  if not cmp_ok then
+    vim.notify("nvim-cmp and blink.cmp are not installed", vim.log.levels.ERROR)
+    error()
+  end
+  return cmp
+end
+
 function M.cmp_abort()
   if M.cmp() then
     M.cmp().abort()
@@ -211,28 +252,6 @@ function M.cmp_select_nth(n)
     vim.api.nvim_buf_set_var(0, "rimels_last_entry", entries[n])
     return M.blink().accept { index = n }
   end
-end
-
-function M.buf_toggle_rime(bufnr, buf_only)
-  if M.buf_rime_enabled() ~= M.global_rime_enabled() or buf_only then
-    vim.api.nvim_buf_set_var(0, buffer_rime_status, not M.buf_rime_enabled())
-    return
-  end
-
-  bufnr = bufnr or vim.api.nvim_get_current_buf()
-
-  local client = M.buf_get_rime_ls_client(bufnr)
-  if not client then
-    M.buf_attach_rime_ls(bufnr)
-    client = M.buf_get_rime_ls_client(bufnr)
-  end
-  if not client then
-    vim.notify("Failed to get rime_ls client", vim.log.levels.ERROR)
-    return
-  end
-
-  M.toggle_rime(client)
-  M.buf_toggle_rime(bufnr, true)
 end
 
 function M.create_autocmd_toggle_rime_according_buffer_status(client)
@@ -623,25 +642,6 @@ function M.global_rime_enabled()
   return (exist and status)
 end
 
-function M.cmp()
-  if M.blink() then
-    return
-  end
-  local cmp_ok, cmp = pcall(require, "cmp")
-  if not cmp_ok then
-    vim.notify("nvim-cmp and blink.cmp are not installed", vim.log.levels.ERROR)
-    error()
-  end
-  return cmp
-end
-
-function M.blink()
-  local blink_ok, blink = pcall(require, "blink.cmp")
-  if blink_ok then
-    return blink
-  end
-end
-
 function M.is_eol()
   return (vim.fn.col "." == vim.fn.col "$")
 end
@@ -678,6 +678,56 @@ function M.is_cmp_visible()
   else
     return M.blink().is_visible()
   end
+end
+
+function M.launch_lsp_server(opts)
+  local lspconfig = require "lspconfig"
+  local lspconfigs = require "lspconfig.configs"
+
+  local rime_on_attach = function(client, _)
+    M.create_command_toggle_rime(client)
+    M.create_command_rime_sync()
+    M.create_autocmd_toggle_rime_according_buffer_status(client)
+    M.create_inoremap_start_rime(client, opts.keys.start)
+    M.create_inoremap_stop_rime(client, opts.keys.stop)
+    M.create_inoremap_esc(opts.keys.esc)
+    M.create_inoremap_undo(opts.keys.undo)
+  end
+
+  if not lspconfigs.rime_ls then
+    lspconfigs.rime_ls = {
+      default_config = {
+        name = "rime_ls",
+        cmd = opts.cmd,
+        root_dir = function() end,
+        filetypes = opts.filetypes,
+        single_file_support = opts.single_file_support,
+      },
+      settings = opts.settings,
+      docs = {
+        description = opts.docs.description,
+      },
+    }
+  end
+
+  lspconfig.rime_ls.setup {
+    init_options = {
+      enabled = M.global_rime_enabled(),
+      shared_data_dir = opts.shared_data_dir,
+      user_data_dir = opts.user_data_dir or opts.rime_user_dir,
+      log_dir = opts.rime_user_dir .. "/log",
+      max_candidates = opts.max_candidates,
+      long_filter_text = M.blink() and true or opts.long_filter_text,
+      trigger_characters = opts.trigger_characters,
+      schema_trigger_character = opts.schema_trigger_character,
+      always_incomplete = opts.always_incomplete,
+      paging_characters = opts.paging_characters,
+    },
+    on_attach = rime_on_attach,
+    capabilities = M.generate_capabilities(),
+  }
+
+  lspconfig.rime_ls.launch()
 end
 
 function M.set_last_entry(entry)
