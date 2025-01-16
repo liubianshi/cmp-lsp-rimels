@@ -225,6 +225,7 @@ M.keymaps["<Space>"] = utils.generate_mapping(function(fallback)
     if new_result then
       if utils.blink() then
         first_entry.label = new_result
+        first_entry.textEdit.newText = new_result
       elseif utils.cmp() then
         --- @diagnostic disable-next-line undefined-field
         first_entry.completion_item.textEdit.newText = new_result
