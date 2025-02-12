@@ -250,6 +250,8 @@ function M.cmp_select_nth(n)
 
   if M.blink() then
     vim.api.nvim_buf_set_var(0, "rimels_last_entry", entries[n])
+    local entry = entries[n]
+
     return M.blink().accept { index = n }
   end
 end

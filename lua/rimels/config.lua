@@ -8,24 +8,11 @@ function M.update_option(user)
     return default
   end
 
-  local opts = {}
-  for key, value in pairs(default) do
-    if user[key] then
-      if key == "cmd" and type(user[key]) == "string" then
-        opts[key] = { user[key] }
-      elseif key == "cmd" and type(user[key]) == "function" then
-        opts[key] = user[key]
-      elseif type(user[key]) ~= type(value) then
-        error(key .. " must be " .. type(value))
-      elseif type(value) == "table" then
-        opts[key] = vim.tbl_extend("force", value, user[key])
-      else
-        opts[key] = user[key]
-      end
-    else
-      opts[key] = value -- 如果 user 表格中没有对应 key，则保持默认值不变
-    end
+  if user.cmd and type(user.cmd) == "string" then
+    user.cmd = { user.cmd }
   end
+
+  local opts = vim.tbl_deep_extend("force", default, user)
 
   for name, probe in pairs(probes) do
     if vim.fn.index(opts.probes.ignore, name) < 0 then
