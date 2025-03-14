@@ -43,10 +43,11 @@ function M.blink_showup_callback(event)
   end
   local last_char = context_line:sub(cursor[2], cursor[2])
 
-  if last_char:match "[1-9]" then
+  local number = last_char:match "[1-9]"
+  if number then
     local rime_id = M.get_rime_entry_ids(event.items, { only = true })
     if rime_id then
-      M.cmp_select_nth(rime_id)
+      M.cmp_select_nth(rime_id, event.items)
     end
   end
 
@@ -231,8 +232,8 @@ function M.cmp_without_processing()
   return nil
 end
 
-function M.cmp_select_nth(n)
-  local entries = M.get_entries() or {}
+function M.cmp_select_nth(n, entries)
+  entries = entries or M.get_entries() or {}
   if M.cmp() then
     if not M.is_cmp_visible() then
       return
@@ -250,8 +251,6 @@ function M.cmp_select_nth(n)
 
   if M.blink() then
     vim.api.nvim_buf_set_var(0, "rimels_last_entry", entries[n])
-    local entry = entries[n]
-
     return M.blink().accept { index = n }
   end
 end
@@ -573,7 +572,7 @@ function M.get_entries()
   end
 
   if M.blink() then
-    return require("blink.cmp.completion.list").items
+    return require("blink.cmp").get_items()
   end
 end
 
@@ -607,8 +606,12 @@ end
 function M.get_rime_entry_ids(entries, opts)
   opts = vim.tbl_extend("keep", opts or {}, {
     first = false,
-    only = true,
+    only = false,
+    number = nil,
   })
+  if opts.number and type(opts.number) == type "1" then
+    opts.number = tonumber(opts.number)
+  end
 
   local ids = {}
   for id, entry in ipairs(entries) do
@@ -619,6 +622,9 @@ function M.get_rime_entry_ids(entries, opts)
       end
       if opts.only and #ids > 1 then
         return
+      end
+      if opts.number and #ids == opts.number - 1 then
+        return id
       end
     end
   end
@@ -660,9 +666,13 @@ function M.is_rime_entry(entry)
   end
 
   if M.blink() then
+    local input = M.get_input_code(entry)
+    local result = M.get_cmp_result(entry)
+
     return entry.source_id == "lsp"
       and vim.lsp.get_client_by_id(entry.client_id).name == "rime_ls"
-      and M.get_input_code(entry) ~= M.get_cmp_result(entry)
+      and input ~= result
+      and input:sub(-result:len(), -1) ~= result
   end
 end
 
