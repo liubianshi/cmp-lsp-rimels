@@ -770,6 +770,11 @@ function M.start_rime_ls(iters)
         M.start_rime_ls(iters + 1)
       end)
     end
+
+    if vim.bo[bufnr].filetype:find "input$" then
+      vim.b[bufnr].completion = true
+    end
+
     return
   end
 
