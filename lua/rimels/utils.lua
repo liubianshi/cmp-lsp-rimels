@@ -119,7 +119,7 @@ function M.buf_attach_rime_ls(bufnr)
     return
   end
 
-  require("lspconfig").rime_ls.launch()
+  M.launch_rime_ls()
 end
 
 function M.buf_get_rime_ls_client(bufnr)
@@ -692,10 +692,7 @@ function M.is_cmp_visible()
   end
 end
 
-function M.launch_lsp_server(opts)
-  local lspconfig = require "lspconfig"
-  local lspconfigs = require "lspconfig.configs"
-
+function M.rime_ls_setup(opts)
   local rime_on_attach = function(client, _)
     M.create_command_toggle_rime(client)
     M.create_command_rime_sync()
@@ -706,23 +703,7 @@ function M.launch_lsp_server(opts)
     M.create_inoremap_undo(opts.keys.undo)
   end
 
-  if not lspconfigs.rime_ls then
-    lspconfigs.rime_ls = {
-      default_config = {
-        name = "rime_ls",
-        cmd = opts.cmd,
-        root_dir = function() end,
-        filetypes = opts.filetypes,
-        single_file_support = opts.single_file_support,
-      },
-      settings = opts.settings,
-      docs = {
-        description = opts.docs.description,
-      },
-    }
-  end
-
-  lspconfig.rime_ls.setup {
+  local lsp_opts = {
     init_options = {
       enabled = M.global_rime_enabled(),
       shared_data_dir = opts.shared_data_dir,
@@ -739,7 +720,39 @@ function M.launch_lsp_server(opts)
     capabilities = M.generate_capabilities(),
   }
 
-  lspconfig.rime_ls.launch()
+  if vim.fn.has "nvim-0.11.0" == 0 then
+    local lspconfigs = require "lspconfig.configs"
+    if not lspconfigs.rime_ls then
+      lspconfigs.rime_ls = {
+        default_config = {
+          name = "rime_ls",
+          cmd = opts.cmd,
+          root_dir = function() end,
+          filetypes = opts.filetypes,
+          single_file_support = opts.single_file_support,
+        },
+        settings = opts.settings,
+        docs = {
+          description = opts.docs.description,
+        },
+      }
+    end
+
+    require("lspconfig").rime_ls.setup(lsp_opts)
+    return
+  end
+
+  lsp_opts.name = "rime_ls"
+  lsp_opts.cmd = opts.cmd
+  vim.lsp.config("rime_ls", lsp_opts)
+end
+
+function M.launch_rime_ls()
+  if vim.fn.has "nvim-0.11.0" == 1 then
+    vim.lsp.enable "rime_ls"
+  else
+    require("lspconfig").rime_ls.launch()
+  end
 end
 
 function M.set_last_entry(entry)

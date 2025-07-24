@@ -10,7 +10,7 @@ function M.setup(opts)
 
   opts = require("rimels.config").update_option(opts or {})
 
-  utils.launch_lsp_server(opts)
+  utils.rime_ls_setup(opts)
 
   vim.keymap.set({ "i" }, opts.keys.start, utils.start_rime_ls, {
     silent = true,
