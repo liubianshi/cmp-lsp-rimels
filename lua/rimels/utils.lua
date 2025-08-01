@@ -279,9 +279,18 @@ end
 
 function M.create_command_rime_sync()
   vim.api.nvim_create_user_command("RimeSync", function()
-    vim.lsp.buf.execute_command {
-      command = "rime-ls.sync-user-data",
-    }
+    local client = M.buf_get_rime_ls_client()
+    if client and client.exec_cmd then -- Neovim ≥ 0.10
+      client:exec_cmd { -- <-- 新推荐 API
+        title = "Sync Rime user data",
+        command = "rime-ls.sync-user-data",
+      }
+    else -- 旧版兼容
+      ---@diagnostic disable-next-line: deprecated
+      vim.lsp.buf.execute_command {
+        command = "rime-ls.sync-user-data",
+      }
+    end
   end, { nargs = 0 })
 end
 
