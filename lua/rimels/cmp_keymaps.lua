@@ -141,66 +141,6 @@ function M.input_method_take_effect(entry, probes_ignored)
   end
 end
 
--- number --------------------------------------------------------------- {{{3
-for numkey = 0, 9 do
-  local numkey_str = tostring(numkey)
-  M.keymaps[numkey_str] = utils.generate_mapping(function(fallback)
-    if not utils.is_cmp_visible() or not utils.buf_rime_enabled() then
-      return utils.fallback(fallback)
-    end
-
-    -- close the cmp menu when 0 is pressed and all entries are from rime-ls
-    if numkey == 0 then
-      utils.fallback(fallback, "0")
-      vim.schedule(function()
-        local entries = utils.get_entries()
-        for _, entry in ipairs(entries) do
-          if not utils.is_rime_entry(entry) then
-            return
-          end
-        end
-        utils.cmp_close()
-      end)
-      return utils.cmp_without_processing()
-    end
-
-    utils.feedkey(numkey_str, "n")
-    vim.schedule(function()
-      if not utils.is_cmp_visible() then
-        return
-      end
-      local entries = utils.get_entries() or {}
-      local rime_entry_id = utils.get_rime_entry_ids(entries, { only = true })
-      if rime_entry_id then
-        utils.cmp_select_nth(rime_entry_id)
-      end
-    end)
-    return utils.cmp_without_processing()
-  end, { "i" })
-end
-
--- <symbol> ------------------------------------------------------------- {{{3
-for _, symbol in ipairs(punctuation_upload_directly) do
-  M.keymaps[symbol] = utils.generate_mapping(function(fallback)
-    if not utils.buf_rime_enabled() or utils.is_cmp_visible() then
-      return utils.fallback(fallback)
-    end
-
-    utils.feedkey(symbol, "n")
-    -- dd(utils.fallback(fallback, symbol)
-
-    vim.schedule(function()
-      if not utils.is_cmp_visible() then
-        return
-      end
-      local entries = utils.get_entries()
-      utils.cmp_confirm_punction(entries)
-    end)
-
-    return utils.cmp_without_processing()
-  end)
-end
-
 -- <Space> -------------------------------------------------------------- {{{3
 M.keymaps["<Space>"] = utils.generate_mapping(function(fallback)
   pcall(vim.api.nvim_buf_del_var, 0, "rimels_last_entry")
@@ -223,13 +163,8 @@ M.keymaps["<Space>"] = utils.generate_mapping(function(fallback)
   if M.input_method_take_effect(first_entry) then
     local new_result = utils.adjust_for_rimels(first_entry)
     if new_result then
-      if utils.blink() then
-        first_entry.label = new_result
-        first_entry.textEdit.newText = new_result
-      elseif utils.cmp() then
-        --- @diagnostic disable-next-line undefined-field
-        first_entry.completion_item.textEdit.newText = new_result
-      end
+      first_entry.label = new_result
+      first_entry.textEdit.newText = new_result
     end
     utils.set_last_entry(first_entry)
     return utils.cmp_confirm(true)
@@ -365,17 +300,6 @@ function M:launch(disable)
   if not next(mappings) then
     return
   end
-  local cmp = utils.cmp()
-  if cmp then
-    local insert = vim.tbl_get(cmp, "mapping", "preset", "insert")
-    cmp.setup { mapping = insert(mappings) }
-    return mappings
-  end
-
-  mappings = utils.filter_cmp_keymaps(mappings, {
-    numbers = true,
-    punctuation_upload_directly = true,
-  })
 
   if not next(mappings) then
     return

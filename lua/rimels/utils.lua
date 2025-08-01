@@ -1,6 +1,16 @@
 local M = {}
 local global_rime_status = "nvim_rime#global_rime_enabled"
 local buffer_rime_status = "buf_rime_enabled"
+local add_listerner = function()
+  local show_emitter = require("blink.cmp.completion.list").show_emitter
+  if
+    not vim.tbl_contains(show_emitter.listeners, function(cb)
+      return cb == M.blink_showup_callback
+    end)
+  then
+    show_emitter:on(M.blink_showup_callback)
+  end
+end
 
 function M.adjust_for_rimels(entry)
   local input_code = M.get_input_code(entry)
@@ -161,51 +171,20 @@ function M.buf_toggle_rime(bufnr, buf_only)
   M.buf_toggle_rime(bufnr, true)
 end
 
-function M.cmp()
-  if M.blink() then
-    return
-  end
-  local cmp_ok, cmp = pcall(require, "cmp")
-  if not cmp_ok then
-    vim.notify("nvim-cmp and blink.cmp are not installed", vim.log.levels.ERROR)
-    error()
-  end
-  return cmp
-end
-
 function M.cmp_abort()
-  if M.cmp() then
-    M.cmp().abort()
-  end
-
-  if M.blink() then
-    M.blink().hide()
-  end
+  M.blink().hide()
 end
 
 function M.cmp_close()
-  if M.cmp() then
-    M.cmp().close()
-  end
-
-  if M.blink() then
-    M.blink().hide()
-  end
+  M.blink().hide()
 end
 
 function M.cmp_confirm(select)
   select = select or true
-  if M.cmp() then
-    return M.cmp()
-      .confirm { behavior = M.cmp().ConfirmBehavior.Insert, select = select }
-  end
-
-  if M.blink() then
-    if select then
-      return M.blink().select_and_accept()
-    else
-      return M.blink().accept()
-    end
+  if select then
+    return M.blink().select_and_accept()
+  else
+    return M.blink().accept()
   end
 end
 
@@ -226,33 +205,13 @@ function M.cmp_confirm_punction(entries)
 end
 
 function M.cmp_without_processing()
-  if M.blink() then
-    return true
-  end
-  return nil
+  return true
 end
 
 function M.cmp_select_nth(n, entries)
   entries = entries or M.get_entries() or {}
-  if M.cmp() then
-    if not M.is_cmp_visible() then
-      return
-    end
-    if n == 0 then
-      return
-    end
-    for _ = 1, n do
-      M.cmp().select_next_item { behavior = M.cmp().SelectBehavior.Select }
-    end
-
-    M.set_last_entry(entries[n])
-    return M.cmp().confirm { behavior = M.cmp().ConfirmBehavior.Insert }
-  end
-
-  if M.blink() then
-    vim.api.nvim_buf_set_var(0, "rimels_last_entry", entries[n])
-    return M.blink().accept { index = n }
-  end
+  vim.api.nvim_buf_set_var(0, "rimels_last_entry", entries[n])
+  return M.blink().accept { index = n }
 end
 
 function M.create_autocmd_toggle_rime_according_buffer_status(client)
@@ -361,9 +320,6 @@ function M.create_inoremap_undo(key)
   end
 
   vim.keymap.set("i", key, function()
-    if M.blink() then
-      return M.blink().cancel()
-    end
     if vim.fn.exists "b:rimels_last_entry" == 0 then
       return fallback()
     end
@@ -418,12 +374,7 @@ function M.fallback(fallback, lhs)
   end
 
   if lhs and type(lhs) == "string" then
-    if M.cmp() then
-      local bufnr = vim.api.nvim_get_current_buf()
-      fallback = require("cmp.utils.keymap").fallback(bufnr, "i", lhs)
-    elseif M.blink() then
-      fallback = require("blink.cmp.keymap.fallback").wrap("i", lhs)
-    end
+    fallback = require("blink.cmp.keymap.fallback").wrap("i", lhs)
     fallback = fallback or function()
       M.feedkey(lhs, "n")
     end
@@ -442,14 +393,7 @@ end
 function M.generate_capabilities()
   -- nvim-cmp supports additional completion capabilities, so broadcast that to servers
   local capabilities = vim.lsp.protocol.make_client_capabilities()
-  if M.blink() then
-    capabilities = M.blink().get_lsp_capabilities(capabilities)
-  else
-    local status_ok, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
-    if status_ok then
-      capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
-    end
-  end
+  capabilities = M.blink().get_lsp_capabilities(capabilities)
 
   -- Fix: Offset-Encoding issue since Neovim v0.10.2 #38
   -- https://github.com/wlh320/rime-ls/issues/38#issuecomment-2559780016
@@ -467,16 +411,10 @@ function M.generate_capabilities()
 end
 
 function M.generate_mapping(fun, opts)
-  if M.cmp() then
-    return M.cmp().mapping(fun, opts)
-  end
-
-  if M.blink() then
-    return {
-      fun,
-      "fallback",
-    }
-  end
+  return {
+    fun,
+    "fallback",
+  }
 end
 
 function M.filter_cmp_keymaps(keymaps, disable)
@@ -544,25 +482,14 @@ function M.get_chars_before_cursor(colnums_before, length)
 end
 
 function M.get_cmp_result(entry)
-  if M.cmp() then
-    return vim.tbl_get(entry, "completion_item", "textEdit", "newText")
-  end
-
-  if M.blink() then
-    return vim.tbl_get(entry, "textEdit", "newText")
-  end
+  return vim.tbl_get(entry, "textEdit", "newText")
 end
 
 function M.get_cmp_source_name(entry)
   if not entry then
     return
   end
-  if M.cmp() then
-    return entry.source.name
-  end
-  if M.blink() then
-    return entry.source_id
-  end
+  return entry.source_id
 end
 
 function M.get_content_before_cursor(shift)
@@ -576,13 +503,7 @@ function M.get_content_before_cursor(shift)
 end
 
 function M.get_entries()
-  if M.cmp() then
-    return M.cmp().get_entries()
-  end
-
-  if M.blink() then
-    return require("blink.cmp").get_items()
-  end
+  return require("blink.cmp").get_items()
 end
 
 function M.get_first_entry()
@@ -593,23 +514,13 @@ function M.get_first_entry()
 end
 
 function M.get_input_code(entry)
-  if M.cmp() then
-    return entry.completion_item.filterText
-  end
-  if M.blink() then
-    return entry.filterText
-  end
+  return entry.filterText
 end
 
 function M.get_mappings()
-  if M.cmp() then
-    return require("cmp.config").get().mapping
-  end
-
-  if M.blink() then
-    return {}
-    -- return require('blink.cmp.keymap').get_mappings(require('blink.cmp.config').keymap)
-  end
+  return require("blink.cmp.keymap").get_mappings(
+    require("blink.cmp.config").keymap
+  )
 end
 
 function M.get_rime_entry_ids(entries, opts)
@@ -645,13 +556,7 @@ function M.get_rime_entry_ids(entries, opts)
 end
 
 function M.get_selected_entry()
-  if M.cmp() then
-    return M.cmp().get_selected_entry()
-  end
-
-  if M.blink() then
-    return require("blink.cmp.completion.list").get_selected_item()
-  end
+  return require("blink.cmp.completion.list").get_selected_item()
 end
 
 function M.global_rime_enabled()
@@ -668,21 +573,13 @@ function M.is_rime_entry(entry)
     return false
   end
 
-  if M.cmp() then
-    return vim.tbl_get(entry, "source", "name") == "nvim_lsp"
-      and vim.tbl_get(entry, "source", "source", "client", "name") == "rime_ls"
-      and M.get_input_code(entry) ~= M.get_cmp_result(entry)
-  end
+  local input = M.get_input_code(entry)
+  local result = M.get_cmp_result(entry)
 
-  if M.blink() then
-    local input = M.get_input_code(entry)
-    local result = M.get_cmp_result(entry)
-
-    return entry.source_id == "lsp"
-      and vim.lsp.get_client_by_id(entry.client_id).name == "rime_ls"
-      and input ~= result
-      and input:sub(-result:len(), -1) ~= result
-  end
+  return entry.source_id == "lsp"
+    and vim.lsp.get_client_by_id(entry.client_id).name == "rime_ls"
+    and input ~= result
+    and input:sub(-result:len(), -1) ~= result
 end
 
 function M.is_typing_english(shift)
@@ -694,11 +591,7 @@ function M.is_typing_english(shift)
 end
 
 function M.is_cmp_visible()
-  if M.cmp() then
-    return M.cmp().visible()
-  else
-    return M.blink().is_visible()
-  end
+  return M.blink().is_visible()
 end
 
 function M.rime_ls_setup(opts)
@@ -748,12 +641,11 @@ function M.rime_ls_setup(opts)
     end
 
     require("lspconfig").rime_ls.setup(lsp_opts)
-    return
+  else
+    lsp_opts.name = "rime_ls"
+    lsp_opts.cmd = opts.cmd
+    vim.lsp.config("rime_ls", lsp_opts)
   end
-
-  lsp_opts.name = "rime_ls"
-  lsp_opts.cmd = opts.cmd
-  vim.lsp.config("rime_ls", lsp_opts)
 end
 
 function M.launch_rime_ls()
@@ -765,16 +657,7 @@ function M.launch_rime_ls()
 end
 
 function M.set_last_entry(entry)
-  if M.cmp() then
-    return vim.api.nvim_buf_set_var(
-      0,
-      "rimels_last_entry",
-      entry.completion_item
-    )
-  end
-  if M.blink() then
-    return vim.api.nvim_buf_set_var(0, "rimels_last_entry", entry)
-  end
+  return vim.api.nvim_buf_set_var(0, "rimels_last_entry", entry)
 end
 
 function M.start_rime_ls(iters)
@@ -787,15 +670,11 @@ function M.start_rime_ls(iters)
     -- Solve the problem that the input method cannot take effect immediately
     -- when starting for the first time
     iters = iters or 0
-    if iters <= 100 then
+    if iters <= 10 then
       vim.schedule(function()
         M.start_rime_ls(iters + 1)
       end)
     end
-
-    -- if vim.bo[bufnr].filetype:find "input$" then
-    --   vim.b[bufnr].completion = true
-    -- end
 
     return
   end
@@ -808,18 +687,8 @@ function M.start_rime_ls(iters)
     M.buf_toggle_rime(bufnr, true)
   end
 
-  if M.blink() then
-    local show_emitter = require("blink.cmp.completion.list").show_emitter
-    if
-      not vim.tbl_contains(show_emitter.listeners, function(cb)
-        return cb == M.blink_showup_callback
-      end)
-    then
-      show_emitter:on(M.blink_showup_callback)
-    end
-  end
-
-  vim.fn.feedkeys("a", "n")
+  add_listerner()
+  M.feedkey("a", "n")
 end
 
 function M.toggle_rime(client)
