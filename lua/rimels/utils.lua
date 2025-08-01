@@ -1,7 +1,32 @@
 local M = {}
+
+local has_nvim_0_10_2 = vim.fn.has "nvim-0.10.2" == 1
+local has_nvim_0_11 = vim.fn.has "nvim-0.11.0" == 1
+
 local global_rime_status = "nvim_rime#global_rime_enabled"
 local buffer_rime_status = "buf_rime_enabled"
-local add_listerner = function()
+
+-- Cached modules and values for performance
+local blink_cmp
+local rimels_opts
+
+---@return table
+local function get_blink_cmp()
+  if blink_cmp == nil then
+    blink_cmp = require "blink.cmp"
+  end
+  return blink_cmp
+end
+
+local function get_rimels_opts()
+  if not rimels_opts then
+    rimels_opts = require("rimels").setup().opts
+  end
+  return rimels_opts
+end
+
+---@private
+local function add_listener()
   local show_emitter = require("blink.cmp.completion.list").show_emitter
   if
     not vim.tbl_contains(show_emitter.listeners, function(cb)
@@ -32,20 +57,14 @@ function M.adjust_for_rimels(entry)
   end
 end
 
-function M.blink()
-  local blink_ok, blink = pcall(require, "blink.cmp")
-  if blink_ok then
-    return blink
-  end
-end
-
 function M.blink_showup_callback(event)
-  local opts = require("rimels").setup().opts
+  local opts = get_rimels_opts()
   local bufnr = vim.api.nvim_get_current_buf()
 
-  if not M.buf_rime_enabled(bufnr) then
+  if not M.buf_rime_enabled(bufnr) or not M.global_rime_enabled() then
     return
   end
+
   local context_line = vim.tbl_get(event, "context", "line")
   local cursor = vim.tbl_get(event, "context", "cursor")
   if context_line == nil or cursor == nil then
@@ -53,65 +72,79 @@ function M.blink_showup_callback(event)
   end
   local last_char = context_line:sub(cursor[2], cursor[2])
 
-  local number = last_char:match "[1-9]"
-  if number then
+  if last_char:find "[1-9]" then
     local rime_id = M.get_rime_entry_ids(event.items, { only = true })
     if rime_id then
       M.cmp_select_nth(rime_id, event.items)
     end
   end
 
-  if vim.tbl_contains(opts.punctuation_upload_directly, last_char) then
+  if vim.tbl_contains(opts.punctuation_upload_directly or {}, last_char) then
     M.cmp_confirm_punction(event.items)
   end
 end
 
+--- Apply blink.cmp keymaps to the current buffer
+---
+--- This function sets up insert mode keymaps for blink.cmp completion commands.
+--- It avoids duplicate application by checking existing mappings and handles
+--- various command types including fallback, user functions, and built-in commands.
+---
+--- @param keys_to_commands table A table mapping keys to arrays of commands
 function M.blink_apply_keymap(keys_to_commands)
-  -- skip if we've already applied the keymaps
-  for _, mapping in ipairs(vim.api.nvim_buf_get_keymap(0, "i")) do
+  -- Early return if keymaps already applied to avoid duplicate mappings
+  local existing_mappings = vim.api.nvim_buf_get_keymap(0, "i")
+  for _, mapping in ipairs(existing_mappings) do
     if mapping.desc == "blink.cmp.rimels" then
       return
     end
   end
 
-  -- insert mode: uses both snippet and insert commands
+  -- Get blink.cmp instance once and cache it
+  local blink = get_blink_cmp()
+
+  -- Cache required modules to reduce repeated require() calls
+  local blink_config = require "blink.cmp.config"
+  local fallback_module = require "blink.cmp.keymap.fallback"
+
+  -- Apply keymaps for each key-command combination
   for key, commands in pairs(keys_to_commands) do
-    if #commands == 0 then
-      goto continue
-    end
+    -- Skip keys with no commands to avoid unnecessary mappings
+    if #commands > 0 then
+      -- Create fallback handler for this specific key
+      local fallback = fallback_module.wrap("i", key)
 
-    local fallback = require("blink.cmp.keymap.fallback").wrap("i", key)
-    vim.api.nvim_buf_set_keymap(0, "i", key, "", {
-      callback = function()
-        if not require("blink.cmp.config").enabled() then
-          return fallback()
-        end
-
-        for _, command in ipairs(commands) do
-          -- special case for fallback
-          if command == "fallback" then
+      -- Set up the keymap with optimized callback
+      vim.api.nvim_buf_set_keymap(0, "i", key, "", {
+        callback = function()
+          -- Check if blink.cmp is currently enabled
+          if not blink_config.enabled() then
             return fallback()
+          end
 
-          -- run user defined functions
-          elseif type(command) == "function" then
-            if command(require "blink.cmp") then
+          -- Execute commands in sequence until one succeeds
+          for _, command in ipairs(commands) do
+            if command == "fallback" then
+              -- Handle special fallback command
+              return fallback()
+            elseif type(command) == "function" then
+              -- Execute user-defined function with blink instance
+              if command(blink) then
+                return
+              end
+            elseif blink[command] and blink[command]() then
+              -- Execute built-in blink command if it exists and succeeds
               return
             end
-
-          -- otherwise, run the built-in command
-          elseif require("blink.cmp")[command]() then
-            return
           end
-        end
-      end,
-      expr = true,
-      silent = true,
-      noremap = true,
-      replace_keycodes = false,
-      desc = "blink.cmp.rimels",
-    })
-
-    ::continue::
+        end,
+        expr = true,
+        silent = true,
+        noremap = true,
+        replace_keycodes = false,
+        desc = "blink.cmp.rimels",
+      })
+    end
   end
 end
 
@@ -150,12 +183,16 @@ function M.buf_rime_enabled(bufnr)
 end
 
 function M.buf_toggle_rime(bufnr, buf_only)
-  if M.buf_rime_enabled() ~= M.global_rime_enabled() or buf_only then
-    vim.api.nvim_buf_set_var(0, buffer_rime_status, not M.buf_rime_enabled())
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  if M.buf_rime_enabled(bufnr) ~= M.global_rime_enabled() or buf_only then
+    vim.api.nvim_buf_set_var(
+      bufnr,
+      buffer_rime_status,
+      not M.buf_rime_enabled(bufnr)
+    )
     return
   end
-
-  bufnr = bufnr or vim.api.nvim_get_current_buf()
 
   local client = M.buf_get_rime_ls_client(bufnr)
   if not client then
@@ -171,20 +208,21 @@ function M.buf_toggle_rime(bufnr, buf_only)
   M.buf_toggle_rime(bufnr, true)
 end
 
-function M.cmp_abort()
-  M.blink().hide()
-end
-
 function M.cmp_close()
-  M.blink().hide()
+  local blink = get_blink_cmp()
+  if blink and blink.is_visible() then
+    blink.hide()
+  end
 end
 
 function M.cmp_confirm(select)
-  select = select or true
+  local blink = get_blink_cmp()
+
+  select = select ~= false
   if select then
-    return M.blink().select_and_accept()
+    return blink.select_and_accept()
   else
-    return M.blink().accept()
+    return blink.accept()
   end
 end
 
@@ -209,9 +247,11 @@ function M.cmp_without_processing()
 end
 
 function M.cmp_select_nth(n, entries)
-  entries = entries or M.get_entries() or {}
-  vim.api.nvim_buf_set_var(0, "rimels_last_entry", entries[n])
-  return M.blink().accept { index = n }
+  local blink = get_blink_cmp()
+
+  entries = entries or blink.get_items() or {}
+  vim.b.rimels_last_entry = entries[n]
+  return blink.accept { index = n }
 end
 
 function M.create_autocmd_toggle_rime_according_buffer_status(client)
@@ -240,11 +280,11 @@ function M.create_command_rime_sync()
   vim.api.nvim_create_user_command("RimeSync", function()
     local client = M.buf_get_rime_ls_client()
     if client and client.exec_cmd then -- Neovim ≥ 0.10
-      client:exec_cmd { -- <-- 新推荐 API
+      client:exec_cmd {
         title = "Sync Rime user data",
         command = "rime-ls.sync-user-data",
       }
-    else -- 旧版兼容
+    elseif client then -- 旧版兼容
       ---@diagnostic disable-next-line: deprecated
       vim.lsp.buf.execute_command {
         command = "rime-ls.sync-user-data",
@@ -297,7 +337,7 @@ end
 function M.create_inoremap_stop_rime(client, key)
   vim.keymap.set("i", key, function()
     if M.is_cmp_visible() then
-      M.cmp_abort()
+      M.cmp_close()
     end
     if M.global_rime_enabled() then
       M.toggle_rime(client)
@@ -320,13 +360,16 @@ function M.create_inoremap_undo(key)
   end
 
   vim.keymap.set("i", key, function()
-    if vim.fn.exists "b:rimels_last_entry" == 0 then
+    -- Use vim.b for buffer-local variables for better performance and readability
+    if vim.b.rimels_last_entry == nil then
       return fallback()
     end
     if M.is_cmp_visible() then
       return fallback()
     end
-    local entry = vim.api.nvim_buf_get_var(0, "rimels_last_entry")
+
+    local entry = vim.b.rimels_last_entry
+    -- Guard against malformed entry
     if
       not entry.filterText
       or not entry.textEdit
@@ -335,17 +378,20 @@ function M.create_inoremap_undo(key)
     then
       return fallback()
     end
+
     local text_cmp = entry.textEdit.newText
     local text_input = entry.filterText
-
     local content_before = M.get_content_before_cursor(0) or ""
-    if not content_before:match(text_cmp .. "$") then
+
+    -- Ensure the text before the cursor ends with the completed text
+    if not content_before:match(vim.pesc(text_cmp) .. "$") then
       return fallback()
     end
+
+    -- Undo the completion by deleting characters and re-inserting original input
     local char_num = vim.fn.strchars(text_cmp)
-    for _ = 1, char_num do
-      M.feedkey("<BS>", "n")
-    end
+    M.feedkey(string.rep("<BS>", char_num), "n")
+
     text_input = text_input:gsub(".*_", "")
     vim.schedule(function()
       vim.api.nvim_put({ text_input }, "c", false, true)
@@ -364,21 +410,21 @@ function M.error_rime_ls_not_start_yet()
   end
 end
 
-function M.fallback(fallback, lhs)
-  if not fallback then
+function M.fallback(fallback_fn, lhs)
+  if not fallback_fn then
     return
   end
 
-  if type(fallback) == "function" then
-    return fallback()
+  if type(fallback_fn) == "function" then
+    return fallback_fn()
   end
 
   if lhs and type(lhs) == "string" then
-    fallback = require("blink.cmp.keymap.fallback").wrap("i", lhs)
-    fallback = fallback or function()
+    fallback_fn = require("blink.cmp.keymap.fallback").wrap("i", lhs)
+    fallback_fn = fallback_fn or function()
       M.feedkey(lhs, "n")
     end
-    return fallback()
+    return fallback_fn()
   end
 end
 
@@ -391,26 +437,25 @@ function M.feedkey(key, mode)
 end
 
 function M.generate_capabilities()
+  local blink = get_blink_cmp()
+  if not blink then
+    return {}
+  end
+
   -- nvim-cmp supports additional completion capabilities, so broadcast that to servers
   local capabilities = vim.lsp.protocol.make_client_capabilities()
-  capabilities = M.blink().get_lsp_capabilities(capabilities)
+  capabilities = blink.get_lsp_capabilities(capabilities)
 
   -- Fix: Offset-Encoding issue since Neovim v0.10.2 #38
-  -- https://github.com/wlh320/rime-ls/issues/38#issuecomment-2559780016
-  if vim.fn.has "nvim-0.10.2" == 1 and vim.fn.has "nvim-0.11.0" == 0 then
-    if capabilities.general then
-      capabilities.general.positionEncodings = { "utf-8" }
-    else
-      capabilities.general = {
-        positionEncodings = { "utf-8" },
-      }
-    end
+  if has_nvim_0_10_2 and not has_nvim_0_11 then
+    capabilities.general = capabilities.general or {}
+    capabilities.general.positionEncodings = { "utf-8" }
   end
 
   return capabilities
 end
 
-function M.generate_mapping(fun, opts)
+function M.generate_mapping(fun)
   return {
     fun,
     "fallback",
@@ -438,34 +483,14 @@ function M.filter_cmp_keymaps(keymaps, disable)
     keymaps["["] = nil
     keymaps["]"] = nil
   end
-  if disable.numbers then
-    for numkey = 0, 9 do
-      local numkey_str = tostring(numkey)
-      keymaps[numkey_str] = nil
-    end
-  end
-
-  if disable.punctuation_upload_directly then
-    local mapped_symbols =
-      require("rimels.default_opts").punctuation_upload_directly
-    local disabled_symbols = mapped_symbols
-    if type(disable.punctuation_upload_directly) == "table" then
-      disabled_symbols = vim.tbl_filter(function(symbol)
-        return vim.tbl_contains(mapped_symbols, symbol)
-      end, disable.punctuation_upload_directly)
-    end
-    for _, symbol in ipairs(disabled_symbols) do
-      keymaps[symbol] = nil
-    end
-  end
 
   return keymaps
 end
 
 function M.get_chars_after_cursor(length)
   length = length or 1
-  local line, col = unpack(vim.api.nvim_win_get_cursor(0))
-  local line_content = vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]
+  local _, col = unpack(vim.api.nvim_win_get_cursor(0))
+  local line_content = vim.api.nvim_get_current_line()
   return line_content:sub(col + 1, col + length)
 end
 
@@ -494,20 +519,20 @@ end
 
 function M.get_content_before_cursor(shift)
   shift = shift or 0
-  local line, col = unpack(vim.api.nvim_win_get_cursor(0))
+  local _, col = unpack(vim.api.nvim_win_get_cursor(0))
   if col < shift then
     return nil
   end
-  local line_content = vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]
+  local line_content = vim.api.nvim_get_current_line()
   return line_content:sub(1, col - shift)
 end
 
-function M.get_entries()
-  return require("blink.cmp").get_items()
-end
-
 function M.get_first_entry()
-  local entries = M.get_entries()
+  local blink = get_blink_cmp()
+  if not blink then
+    return
+  end
+  local entries = blink.get_items()
   if entries and #entries > 0 then
     return entries[1]
   end
@@ -518,8 +543,13 @@ function M.get_input_code(entry)
 end
 
 function M.get_mappings()
+  local blink = get_blink_cmp()
+  if not blink then
+    return {}
+  end
   return require("blink.cmp.keymap").get_mappings(
-    require("blink.cmp.config").keymap
+    require("blink.cmp.config").keymap,
+    "default"
   )
 end
 
@@ -529,7 +559,7 @@ function M.get_rime_entry_ids(entries, opts)
     only = false,
     number = nil,
   })
-  if opts.number and type(opts.number) == type "1" then
+  if opts.number and type(opts.number) == "string" then
     opts.number = tonumber(opts.number)
   end
 
@@ -556,6 +586,10 @@ function M.get_rime_entry_ids(entries, opts)
 end
 
 function M.get_selected_entry()
+  local blink = get_blink_cmp()
+  if not blink then
+    return
+  end
   return require("blink.cmp.completion.list").get_selected_item()
 end
 
@@ -575,9 +609,11 @@ function M.is_rime_entry(entry)
 
   local input = M.get_input_code(entry)
   local result = M.get_cmp_result(entry)
+  local client = vim.lsp.get_client_by_id(entry.client_id)
 
   return entry.source_id == "lsp"
-    and vim.lsp.get_client_by_id(entry.client_id).name == "rime_ls"
+    and client
+    and client.name == "rime_ls"
     and input ~= result
     and input:sub(-result:len(), -1) ~= result
 end
@@ -591,7 +627,8 @@ function M.is_typing_english(shift)
 end
 
 function M.is_cmp_visible()
-  return M.blink().is_visible()
+  local blink = get_blink_cmp()
+  return blink and blink.is_visible()
 end
 
 function M.rime_ls_setup(opts)
@@ -612,7 +649,7 @@ function M.rime_ls_setup(opts)
       user_data_dir = opts.user_data_dir or opts.rime_user_dir,
       log_dir = opts.rime_user_dir .. "/log",
       max_candidates = opts.max_candidates,
-      long_filter_text = M.blink() and true or opts.long_filter_text,
+      long_filter_text = get_blink_cmp() and true or opts.long_filter_text,
       trigger_characters = opts.trigger_characters,
       schema_trigger_character = opts.schema_trigger_character,
       always_incomplete = opts.always_incomplete,
@@ -622,7 +659,7 @@ function M.rime_ls_setup(opts)
     capabilities = M.generate_capabilities(),
   }
 
-  if vim.fn.has "nvim-0.11.0" == 0 then
+  if not has_nvim_0_11 then
     local lspconfigs = require "lspconfig.configs"
     if not lspconfigs.rime_ls then
       lspconfigs.rime_ls = {
@@ -649,7 +686,7 @@ function M.rime_ls_setup(opts)
 end
 
 function M.launch_rime_ls()
-  if vim.fn.has "nvim-0.11.0" == 1 then
+  if has_nvim_0_11 then
     vim.lsp.enable "rime_ls"
   else
     require("lspconfig").rime_ls.launch()
@@ -657,7 +694,7 @@ function M.launch_rime_ls()
 end
 
 function M.set_last_entry(entry)
-  return vim.api.nvim_buf_set_var(0, "rimels_last_entry", entry)
+  vim.b.rimels_last_entry = entry
 end
 
 function M.start_rime_ls(iters)
@@ -687,26 +724,57 @@ function M.start_rime_ls(iters)
     M.buf_toggle_rime(bufnr, true)
   end
 
-  add_listerner()
+  add_listener()
   M.feedkey("a", "n")
 end
 
-function M.toggle_rime(client)
+--- Toggles the Rime input method status via language server command
+---
+--- This function communicates with the rime_ls language server to toggle
+--- the Rime input method state and updates the global status variable.
+---
+--- @param client table|nil The rime_ls LSP client instance. If nil, attempts to retrieve automatically
+--- @param synchronously boolean|nil If true, executes immediately; if false/nil, schedules for next event loop
+--- @return nil
+function M.toggle_rime(client, synchronously)
+  -- Retrieve client if not provided, with fallback to buffer-specific client
   client = client or M.buf_get_rime_ls_client()
+
+  -- Validate client exists and is the correct rime_ls instance
   if not client or client.name ~= "rime_ls" then
+    vim.notify("No valid rime_ls client available", vim.log.levels.WARN)
     return
   end
-  vim.schedule(function()
-    client.request(
+
+  -- Define the toggle operation with improved error handling
+  local function execute_toggle_request()
+    client:request(
       "workspace/executeCommand",
       { command = "rime-ls.toggle-rime" },
-      function(_, result, ctx, _)
-        if ctx.client_id == client.id then
+      function(err, result, ctx, _)
+        -- Handle request errors
+        if err then
+          vim.notify(
+            "Failed to toggle Rime: " .. tostring(err),
+            vim.log.levels.ERROR
+          )
+          return
+        end
+
+        -- Update global status only for the correct client and valid result
+        if ctx.client_id == client.id and result ~= nil then
           vim.api.nvim_set_var(global_rime_status, result)
         end
       end
     )
-  end)
+  end
+
+  -- Execute the toggle request either synchronously or asynchronously
+  if synchronously then
+    execute_toggle_request()
+  else
+    vim.schedule(execute_toggle_request)
+  end
 end
 
 return M

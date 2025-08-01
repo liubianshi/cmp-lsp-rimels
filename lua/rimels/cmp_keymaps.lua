@@ -1,6 +1,4 @@
 local utils = require "rimels.utils"
-local default_opts = require "rimels.default_opts"
-local punctuation_upload_directly = default_opts.punctuation_upload_directly
 
 local M = { keymaps = utils.get_mappings() }
 
@@ -141,6 +139,22 @@ function M.input_method_take_effect(entry, probes_ignored)
   end
 end
 
+-- number --------------------------------------------------------------- {{{3
+for numkey = 1, 9 do
+  local numkey_str = tostring(numkey)
+  M.keymaps[numkey_str] = utils.generate_mapping(function(fallback)
+    if not utils.buf_rime_enabled() then
+      return utils.fallback(fallback)
+    end
+    if not utils.is_cmp_visible() then
+      utils.toggle_rime(utils.buf_get_rime_ls_client(), true)
+      return utils.fallback(fallback)
+    end
+    utils.feedkey(numkey_str, "n")
+    return utils.cmp_without_processing()
+  end)
+end
+
 -- <Space> -------------------------------------------------------------- {{{3
 M.keymaps["<Space>"] = utils.generate_mapping(function(fallback)
   pcall(vim.api.nvim_buf_del_var, 0, "rimels_last_entry")
@@ -172,7 +186,7 @@ M.keymaps["<Space>"] = utils.generate_mapping(function(fallback)
 
   M.autotoggle_space()
   return utils.fallback(fallback)
-end, { "i", "s" })
+end)
 
 -- <CR> ----------------------------------------------------------------- {{{3
 M.keymaps["<CR>"] = utils.generate_mapping(function(fallback)
@@ -204,7 +218,7 @@ M.keymaps["<CR>"] = utils.generate_mapping(function(fallback)
   end
 
   return utils.cmp_without_processing()
-end, { "i", "s" })
+end)
 
 -- [: 实现 rime 选词定字，选中词的第一个字 ------------------------------ {{{3
 M.keymaps["["] = utils.generate_mapping(function(fallback)
@@ -223,7 +237,7 @@ M.keymaps["["] = utils.generate_mapping(function(fallback)
   if M.input_method_take_effect(entry) then
     local text = utils.get_cmp_result(entry)
     text = vim.fn.split(text, "\\zs")[1]
-    utils.cmp_abort()
+    utils.cmp_close()
     vim.schedule(function()
       local input =
         utils.get_input_code(entry):gsub("[^\1-\127]*([\1-\127]+)$", "%1")
@@ -239,7 +253,7 @@ M.keymaps["["] = utils.generate_mapping(function(fallback)
   end
 
   return utils.cmp_without_processing()
-end, { "i", "s" })
+end)
 
 -- ]: 实现 rime 选词定字，选中词的最后一个字 ------------------------------ {{{3
 M.keymaps["]"] = utils.generate_mapping(function(fallback)
@@ -259,7 +273,7 @@ M.keymaps["]"] = utils.generate_mapping(function(fallback)
     local text = utils.get_cmp_result(entry)
     text = vim.fn.split(text, "\\zs")
     text = text[#text]
-    utils.cmp_abort()
+    utils.cmp_close()
 
     vim.schedule(function()
       local input =
@@ -276,14 +290,14 @@ M.keymaps["]"] = utils.generate_mapping(function(fallback)
   end
 
   return utils.cmp_without_processing()
-end, { "i", "s" })
+end)
 
 -- <bs> ----------------------------------------------------------------- {{{3
 M.keymaps["<BS>"] = utils.generate_mapping(function(fallback)
   if not utils.is_cmp_visible() then
     local re = M.autotoggle_backspace()
     if re == 1 then
-      utils.cmp_abort()
+      utils.cmp_close()
       utils.feedkey("<left>", "n")
     else
       return utils.fallback(fallback)
@@ -293,7 +307,7 @@ M.keymaps["<BS>"] = utils.generate_mapping(function(fallback)
   end
 
   return utils.cmp_without_processing()
-end, { "i", "s" })
+end)
 
 function M:launch(disable)
   local mappings = utils.filter_cmp_keymaps(self.keymaps, disable or {})
