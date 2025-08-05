@@ -147,7 +147,9 @@ for numkey = 1, 9 do
       return utils.fallback(fallback)
     end
     if not utils.is_cmp_visible() then
-      utils.toggle_rime(utils.buf_get_rime_ls_client(), true)
+      if utils.global_rime_enabled() then
+        utils.toggle_rime(utils.buf_get_rime_ls_client(), true)
+      end
       return utils.fallback(fallback)
     end
     utils.feedkey(numkey_str, "n")
