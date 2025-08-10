@@ -411,10 +411,6 @@ function M.error_rime_ls_not_start_yet()
 end
 
 function M.fallback(fallback_fn, lhs)
-  if not fallback_fn then
-    return
-  end
-
   if type(fallback_fn) == "function" then
     return fallback_fn()
   end
