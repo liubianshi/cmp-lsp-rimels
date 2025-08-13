@@ -38,6 +38,80 @@ function M.setup(opts)
   -- Store configuration for later access
   M.opts = opts
 
+  -- Autocmd to enhance Blink completion behavior for numbers and punctuation with Rime
+  -- - When Blink shows completion (User BlinkCmpShow), if the last typed character is a number (1-9)
+  --   or a configured punctuation, perform a specific action using Rime utilities.
+  -- - Adds defensive checks and minimizes redundant lookups for clarity and robustness.
+
+  local api = vim.api
+
+  -- Create or reuse augroup once
+  local group = api.nvim_create_augroup("blink.lsp.rimels", { clear = true })
+
+  api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "BlinkCmpShow",
+    callback = vim.schedule_wrap(function(event)
+      local bufnr = (event and event.buf) or api.nvim_get_current_buf()
+      if
+        not utils.global_rime_enabled() or not utils.buf_rime_enabled(bufnr)
+      then
+        return
+      end
+
+      -- Extract completion context safely
+      local ctx = vim.tbl_get(event or {}, "data", "context")
+      if type(ctx) ~= "table" then
+        return
+      end
+      local line = ctx.line
+      local cursor = ctx.cursor
+      if type(line) ~= "string" or type(cursor) ~= "table" then
+        return
+      end
+
+      -- Get character at the cursor column (guard indices)
+      local col = tonumber(cursor[2])
+      if not col or col < 1 or col > #line then
+        return
+      end
+      local ch = line:sub(col, col)
+      if ch == "" then
+        return
+      end
+
+      -- Determine trigger type: number (1-9) or configured punctuation
+      local punctuation_list = (opts and opts.punctuation_upload_directly) or {}
+      local is_punctuation = vim.tbl_contains(punctuation_list, ch)
+      local is_number = not is_punctuation and (ch:match "[1-9]" ~= nil)
+
+      if not (is_number or is_punctuation) then
+        return
+      end
+
+      -- Retrieve Blink completion items safely
+      local ok, cmp = pcall(require, "blink.cmp")
+      if not ok or type(cmp.get_items) ~= "function" then
+        return
+      end
+      local items = cmp.get_items()
+      if type(items) ~= "table" or #items == 0 then
+        return
+      end
+
+      -- Execute corresponding action
+      if is_number then
+        local rime_id = utils.get_rime_entry_ids(items, { only = true })
+        if rime_id then
+          utils.cmp_select_nth(rime_id, items)
+        end
+      else -- punctuation
+        -- Note: function name kept as in original (cmp_confirm_punction)
+        utils.cmp_confirm_punction(items)
+      end
+    end),
+  })
+
   return M
 end
 

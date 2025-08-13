@@ -8,7 +8,6 @@ local buffer_rime_status = "buf_rime_enabled"
 
 -- Cached modules and values for performance
 local blink_cmp
-local rimels_opts
 
 ---@return table
 local function get_blink_cmp()
@@ -16,25 +15,6 @@ local function get_blink_cmp()
     blink_cmp = require "blink.cmp"
   end
   return blink_cmp
-end
-
-local function get_rimels_opts()
-  if not rimels_opts then
-    rimels_opts = require("rimels").setup().opts
-  end
-  return rimels_opts
-end
-
----@private
-local function add_listener()
-  local show_emitter = require("blink.cmp.completion.list").show_emitter
-  if
-    not vim.tbl_contains(show_emitter.listeners, function(cb)
-      return cb == M.blink_showup_callback
-    end)
-  then
-    show_emitter:on(M.blink_showup_callback)
-  end
 end
 
 function M.adjust_for_rimels(entry)
@@ -54,33 +34,6 @@ function M.adjust_for_rimels(entry)
       prefix = prefix:sub(2)
     end
     return prefix .. cmp_result
-  end
-end
-
-function M.blink_showup_callback(event)
-  local opts = get_rimels_opts()
-  local bufnr = vim.api.nvim_get_current_buf()
-
-  if not M.buf_rime_enabled(bufnr) or not M.global_rime_enabled() then
-    return
-  end
-
-  local context_line = vim.tbl_get(event, "context", "line")
-  local cursor = vim.tbl_get(event, "context", "cursor")
-  if context_line == nil or cursor == nil then
-    return
-  end
-  local last_char = context_line:sub(cursor[2], cursor[2])
-
-  if last_char:find "[1-9]" then
-    local rime_id = M.get_rime_entry_ids(event.items, { only = true })
-    if rime_id then
-      M.cmp_select_nth(rime_id, event.items)
-    end
-  end
-
-  if vim.tbl_contains(opts.punctuation_upload_directly or {}, last_char) then
-    M.cmp_confirm_punction(event.items)
   end
 end
 
@@ -720,7 +673,6 @@ function M.start_rime_ls(iters)
     M.buf_toggle_rime(bufnr, true)
   end
 
-  add_listener()
   M.feedkey("a", "n")
 end
 
