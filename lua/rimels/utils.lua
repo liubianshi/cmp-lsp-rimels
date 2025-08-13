@@ -649,7 +649,6 @@ end
 function M.start_rime_ls(iters)
   local bufnr = vim.api.nvim_get_current_buf()
   local client = M.buf_get_rime_ls_client(bufnr)
-  vim.cmd "stopinsert"
 
   if not client then
     M.buf_attach_rime_ls(bufnr)
@@ -672,8 +671,6 @@ function M.start_rime_ls(iters)
   if not M.buf_rime_enabled() then
     M.buf_toggle_rime(bufnr, true)
   end
-
-  M.feedkey("a", "n")
 end
 
 --- Toggles the Rime input method status via language server command
