@@ -187,9 +187,9 @@ function M.cmp_confirm_punction(entries)
 
   -- check character before the punctuation
   local word_before = M.get_chars_before_cursor(2)
-  if not word_before or word_before == "" or word_before:match "[%s%w%p]" then
+  if not word_before or word_before == "" then
     M.cmp_close()
-  else
+  elseif not word_before:match "[%s%w%p]" then
     M.set_last_entry(entries[rime_id])
     M.cmp_select_nth(rime_id)
   end
