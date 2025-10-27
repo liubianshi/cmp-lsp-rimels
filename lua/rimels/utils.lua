@@ -646,28 +646,36 @@ function M.set_last_entry(entry)
   vim.b.rimels_last_entry = entry
 end
 
+--- Function to start the Rime language server for the current buffer.
+---
+--- This function ensures a Rime LS client is attached to the buffer and enables Rime if necessary.
+--- It includes a recursive retry mechanism to handle initial attachment issues.
+---
+--- @param iters? number: Current iteration count for retries (defaults to 0).
+--- @return nil
 function M.start_rime_ls(iters)
   local bufnr = vim.api.nvim_get_current_buf()
   local client = M.buf_get_rime_ls_client(bufnr)
 
   if not client then
+    -- Attach the Rime LS client to the buffer if not already attached
     M.buf_attach_rime_ls(bufnr)
-    -- Solve the problem that the input method cannot take effect immediately
-    -- when starting for the first time
+    -- Retry mechanism to ensure input method takes effect on first start
     iters = iters or 0
     if iters <= 10 then
       vim.schedule(function()
         M.start_rime_ls(iters + 1)
       end)
     end
-
     return
   end
 
+  -- Enable Rime globally if not already enabled
   if not M.global_rime_enabled() then
     M.toggle_rime(client)
   end
 
+  -- Enable Rime for the buffer if not already enabled
   if not M.buf_rime_enabled() then
     M.buf_toggle_rime(bufnr, true)
   end

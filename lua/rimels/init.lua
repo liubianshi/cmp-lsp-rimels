@@ -112,6 +112,33 @@ function M.setup(opts)
     end),
   })
 
+  -- Autocmd to synchronize Rime input method status when entering a buffer
+  api.nvim_create_autocmd({ "BufEnter" }, {
+    group = group,
+    callback = function(event)
+      -- Extract buffer number from event, return early if invalid
+      local bufnr = event and event.buf
+      if not bufnr then
+        return
+      end
+
+      -- Ignore special buffers where Rime is not needed
+      local buftype = api.nvim_get_option_value("buftype", { buf = bufnr })
+      if buftype ~= "" then
+        return
+      end
+
+      -- Check global and buffer-specific Rime enabled statuses
+      local rime_status_global = utils.global_rime_enabled()
+      local rime_status_buf = utils.buf_rime_enabled(bufnr)
+
+      -- Toggle Rime if there's a mismatch between global and buffer statuses
+      if rime_status_buf ~= rime_status_global then
+        utils.toggle_rime()
+      end
+    end,
+  })
+
   return M
 end
 
