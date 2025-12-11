@@ -100,15 +100,17 @@ function M.setup(opts)
       end
 
       -- Execute corresponding action
-      if is_number then
-        local rime_id = utils.get_rime_entry_ids(items, { only = true })
-        if rime_id then
-          utils.cmp_select_nth(rime_id, items)
+      vim.schedule(function()
+        if is_number then
+          local rime_id = utils.get_rime_entry_ids(items, { only = true })
+          if rime_id then
+            utils.cmp_select_nth(rime_id, items)
+          end
+        else -- punctuation
+          -- Note: function name kept as in original (cmp_confirm_punction)
+          utils.cmp_confirm_punction(items)
         end
-      else -- punctuation
-        -- Note: function name kept as in original (cmp_confirm_punction)
-        utils.cmp_confirm_punction(items)
-      end
+      end)
     end),
   })
 

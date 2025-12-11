@@ -204,7 +204,7 @@ function M.cmp_select_nth(n, entries)
 
   entries = entries or blink.get_items() or {}
   vim.b.rimels_last_entry = entries[n]
-  return blink.accept { index = n }
+  blink.accept { index = n }
 end
 
 function M.create_autocmd_toggle_rime_according_buffer_status(client)
