@@ -1,0 +1,1878 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+The content has been processed where content has been compressed (code blocks are separated by ⋮---- delimiter).
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Content has been compressed - code blocks are separated by ⋮---- delimiter
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+lua/
+  rimels/
+    cmp_keymaps.lua
+    config.lua
+    default_opts.lua
+    english_environment_detectors.lua
+    init.lua
+    probes.lua
+    utils.lua
+.gitignore
+LICENSE
+README.md
+stylua.toml
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".gitignore">
+doc/tags
+</file>
+
+<file path="LICENSE">
+MIT License
+
+Copyright (c) 2024 LiuBianShi
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+</file>
+
+<file path="stylua.toml">
+column_width = 80
+indent_type = "Spaces"
+indent_width = 2
+no_call_parentheses = true
+</file>
+
+<file path="lua/rimels/english_environment_detectors.lua">
+local M = {with_treesitter = {}, with_syntax = {}}
+
+function M.with_treesitter.norg(info)
+  info = info or vim.inspect_pos()
+  local trees = info.treesitter
+  local extmarks = info.extmarks
+  local englist_env = false
+  for _, ts in ipairs(trees) do
+    if
+      ts.capture == "neorg.markup.variable" or
+      ts.capture == "neorg.markup.verbatim" or
+      ts.capture == "neorg.markup.inline_math"
+    then
+      return true
+    elseif ts.capture == "comment" then
+      return false
+    end
+  end
+  for _,ext in ipairs(extmarks) do
+    if
+      ext.opts and
+      ext.opts.hl_group == "@neorg.tags.ranged_verbatim.code_block"
+    then
+      return true
+    end
+  end
+  return englist_env
+end
+
+function M.with_treesitter.markdown(info)
+  info = info or vim.inspect_pos()
+  local trees = info.treesitter
+  local englist_env = false
+  for _, ts in ipairs(trees) do
+    if
+      ts.capture == "markup.math" or
+      ts.capture == "markup.raw"
+    then
+      return true
+    elseif ts.capture == "markup.raw.block" then
+      englist_env = true
+    elseif ts.capture == "comment" then
+      return false
+    end
+  end
+  return englist_env
+end
+
+function M.with_syntax.markdown(info)
+  info = info or vim.inspect_pos()
+  local syns = info.syntax
+  local englist_env = false
+  for _, syn in ipairs(syns) do
+    local hl = syn.hl_group
+    local hl_link = syn.hl_group_link
+    if
+      hl == "pandocLaTeXInlineMath" or
+      hl == "pandocNoFormatted" or
+      hl == "pandocOperator" or
+      hl == "pandocLaTeXMathBlock"
+    then
+      return true
+    elseif hl == "pandocDelimitedCodeBlock" then
+      englist_env = true
+    elseif hl_link == "Comment" then
+      return false
+    end
+  end
+  return englist_env
+end
+
+return M
+</file>
+
+<file path="lua/rimels/config.lua">
+-- Module for handling rimels plugin option configuration and merging
+local default = require "rimels.default_opts"
+local probes = require "rimels.probes"
+local detectors = require "rimels.english_environment_detectors"
+
+local M = {}
+
+--- Update and merge user options with default configuration
+--- @param user table|nil User-provided options to merge with defaults
+--- @return table Merged options configuration
+function M.update_option(user)
+  -- Return defaults if no user options provided or table is empty
+  if not (user and next(user)) then
+    return default
+  end
+
+  -- Normalize cmd option: convert string to table format for consistency
+  if user.cmd and type(user.cmd) == "string" then
+    user.cmd = { user.cmd }
+  end
+
+  -- Deep merge user options with defaults, user options take precedence
+  local opts = vim.tbl_deep_extend("force", default, user)
+
+  -- Configure probes: include all available probes except those explicitly ignored
+  for name, probe in pairs(probes) do
+    -- Only add probe if it's not in the ignore list
+    if not vim.tbl_contains(opts.probes.ignore, name) then
+      opts.probes.using[name] = probe
+    end
+  end
+
+  -- Merge in any additional custom probes specified by user
+  opts.probes.using = vim.tbl_extend("force", opts.probes.using, opts.probes.add)
+
+  -- Configure detectors by merging default detectors with user-provided ones
+  opts.detectors = {
+    with_treesitter = vim.tbl_extend(
+      "force",
+      detectors.with_treesitter,
+      opts.detectors.with_treesitter or {}
+    ),
+    with_syntax = vim.tbl_extend(
+      "force",
+      detectors.with_syntax,
+      opts.detectors.with_syntax or {}
+    ),
+  }
+
+  return opts
+end
+
+return M
+</file>
+
+<file path="lua/rimels/probes.lua">
+local utils = require "rimels.utils"
+local M = {}
+local PASS = false
+local REJECT = true
+
+function M.probe_temporarily_disabled()
+  if utils.buf_rime_enabled() then
+    return PASS
+  else
+    return REJECT
+  end
+end
+
+function M.probe_caps_start()
+  if utils.get_content_before_cursor():match "[A-Z][%w]*%s*$" then
+    return REJECT
+  else
+    return PASS
+  end
+end
+
+function M.probe_punctuation_after_half_symbol()
+  local content_before = utils.get_content_before_cursor(1) or "";
+  local word_pre1 = utils.get_chars_before_cursor(1, 1)
+  local word_pre2 = utils.get_chars_before_cursor(2, 1)
+  if not (word_pre1 and word_pre1:match "[-%p]") then
+    return PASS
+  elseif
+    not word_pre2 or word_pre2 == ""
+    or word_pre2:match('[-%s%p]')
+    or (word_pre2:match('%w') and content_before:match('%s%w+$'))
+    or (word_pre2:match('%w') and content_before:match('^%w+$'))
+  then
+    return REJECT
+  else
+    return PASS
+  end
+end
+
+function M.probe_in_mathblock()
+  local info = vim.inspect_pos()
+  for _, syn in ipairs(info.syntax) do
+    if syn.hl_group_link:match "mathblock" then
+      return REJECT
+    end
+  end
+  for _, ts in ipairs(info.treesitter) do
+    if ts.capture == "markup.math" then
+      return REJECT
+    end
+  end
+  return PASS
+end
+
+return M
+</file>
+
+<file path="lua/rimels/default_opts.lua">
+local M = {
+  filetypes = { "NO_DEFAULT_FILETYPES" },
+  cmd = { "/sbin/rime_ls" },
+  single_file_support = true,
+  settings = {},
+  rime_user_dir = "~/.local/share/rime-ls",
+  shared_data_dir = "/usr/share/rime-data",
+  paging_characters = { ",", ".", "-", "=" },
+  trigger_characters = {},
+  long_filter_text = false,
+  always_incomplete = false,
+  docs = {
+    description = [[https://www.github.com/wlh320/rime-ls, A language server for librime]],
+  },
+  keys = {
+    start = ";f",
+    stop = ";;",
+    esc = ";j",
+    undo = ";u",
+  },
+  max_candidates = 9,
+  schema_trigger_character = "&", -- [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
+  probes = {
+    ignore = {},
+    using = {},
+    add = {},
+  },
+  detectors = {
+    with_treesitter = {},
+    with_syntax = {},
+  },
+  punctuation_upload_directly = { ",", ".", ":", "\\", "?", "!" },
+  cmp_keymaps = {
+    disable = {
+      space = false,
+      numbers = false,
+      enter = false,
+      brackets = false,
+      backspace = false,
+      punctuation_upload_directly = false,
+    },
+  },
+}
+
+if vim.fn.has "mac" == 1 then
+  M.shared_data_dir =
+    "/Library/Input Methods/Squirrel.app/Contents/SharedSupport"
+  M.cmd = { vim.env.HOME .. "/.local/bin/rime_ls" }
+end
+
+return M
+</file>
+
+<file path="README.md">
+# cmp-lsp-rimels
+
+`cmp-lsp-rimels` 是 [wlh320/rime-ls][2] 在 Neovim 下的一个配置方案，可在多数场景实现输入
+法自动切换，优化来 Neovim 下的中文输入，特别是中英文混合输入的体验。项目的设计在很
+多方面受到了 [DogLooksGood/emacs-rime][3] 启发。
+
+https://github.com/liubianshi/cmp-lsp-rimels/assets/24829102/f6d76a3e-3712-4736-a39f-1870b2bcec30
+
+项目目前不算稳定。测试主要来自本人在 MacOS 和 ArchLinux 上的日常使用，能正常运行。
+从 [#1][8] 看项目在 Windows 下应该也能运行。
+
+如果您熟悉 [nvim-cmp][1]、[blink.cmp][9] 和 [wlh320/rime-ls][2]，那么还是建议只将本项目视为自己配
+置的参考。
+
+## 特点
+
+- 流畅。输入法的自动切换（包括插入模式和普通模式转变时的切换，插入模式下中英文输入
+  的切换）不会产生时滞。此外，在多数情况下，无需手动切换输入法，即可实现中英文混合
+  输入。
+
+- 不会干扰插入模式下 keymaps。在使用系统输入法时， `jk` 等退出插入模式之类的 keymap
+  会变得很难用，输入法会劫持输入的字母。但在本项目不会有这个问题。
+
+- 能够使用常规输入法的大部分功能。主要得益于 [wlh320/rime-ls][2]，这里增加了数字键选中
+  候选词并直接上屏，通过 `[` 和 `]` 实现以词定字, 输入部分标点符号，如 `,` 和 `.` 等，可在
+  特定的情形自动上屏。此外，也采用临时方案解决了上游的一些问题, 如 [用数字选词以后
+  还需要一次空格才能上屏幕][5]，[字符补全后消失][4]
+
+- 能够使用 `;u` 撤销上屏，并恢复之前输入的字符（目前还有一些 Bug）
+
+- 能够在各种 Buffer 下启用，且通常情况不会意外开启。在常规配置下，[wlh320/rime-ls][2]
+  需要在 `lsp` 能自动启用的 buffer 才能生效。本项目可使 `rime-ls` 在所有可开启 cmp
+  的 buffer 生效。
+
+- 具有一定的可扩展性，比如控制两类探针的使用，一类用于判定当前是否处在英文输入环境，
+  一类用于判定是否让候选词上屏。
+
+## 依赖
+
+- [wlh320/rime-ls][2]
+- ([hrsh7th/nvim-cmp][1] + [hrsh7th/cmp-nvim-lsp][6]) / [Saghen/blink.cmp][9]
+- [neovim/nvim-lspconfig][7]: Quickstart configs for Nvim LSP
+
+## 安装
+
+### [lazy.nvim](https://github.com/folke/lazy.nvim)
+
+```lua
+{
+  "liubianshi/cmp-lsp-rimels",
+  keys = {{"<localleader>f", mode = "i"}},
+  branch = "blink.cmp",
+  config = function()
+    require('rimels').setup({})
+  end,
+}
+```
+
+推荐下面的配置，好处是可以避免开启多个 rime, 以及因此产生的用户词库冲突。
+
+```lua
+{
+  "liubianshi/cmp-lsp-rimels",
+  keys = {{"<localleader>f", mode = "i"}},
+  branch = "blink.cmp",
+  config = function()
+    vim.system({'rime_ls', '--listen', '127.0.0.1:9257'}, {detach = true})
+    require('rimels').setup({
+      cmd = vim.lsp.rpc.connect("127.0.0.1", 9257),
+    })
+  end,
+}
+```
+
+如果使用的补全框架为 [blink.cmp][9], 那么需要在配置 [blink.cmp][9] 时，手动加入 `cmp-lsp-rimels`
+的 `kepmaps`，并修改默认的 LSP 过滤规则。
+
+```lua
+{
+  -- 参考：https://github.com/wlh320/rime-ls/blob/master/doc/nvim-with-blink.md
+  sources = {
+    -- ...
+    providers = {
+      lsp = {
+        transform_items = function(_, items)
+          -- the default transformer will do this
+          for _, item in ipairs(items) do
+            if item.kind == require('blink.cmp.types').CompletionItemKind.Snippet then
+              item.score_offset = item.score_offset - 3
+            end
+          end
+          -- you can define your own filter for rime item
+          return items
+        end
+      }
+    },
+    -- ...
+  }
+}
+```
+
+此外，`blink.cmp` 的默认 `completion.keyword.regex` 为 `'[-_]\\|\\k'`, 而 `\k` 的默认值为
+`@,48-57,_,192-255`, 会导致所有的中文都是有效字符，将我个人体验看，这会严重降低输入
+法的响应速度。建议修改 `completion.keyword.regex` 或 `vim.opt.iskeyword`. 由于 `blink.cmp`
+目前不能动态设置 `completion.keyword.regex`, 所以我倾向于修改 `iskeyword`.
+
+```lua
+vim.opt.iskeyword = "_,49-57,A-Z,a-z"
+```
+
+## 思路
+
+核心思路是修改空格的行为，让它根据当前场景决定自动切换到中文或英文输入状态，根据前
+后文决定是否将候选词上屏等。
+
+`cmp-lsp-rimels` 的功能高度依赖在中英文之间插入空格的习惯。在中文字符后面按空格时，
+会假定随后需要输入的是英文，并自动切换到英文输入法。在完成英文输入后，再按空格，那
+么它会主动将输入法切换回中文输入状态。如果您很不习惯中英文之间插入空格，那么
+`cmp-lsp-rimels` 可能对您并不合适。这不仅输入法自动切换的功能将失效，而且可能出现奇
+怪的 Bug.
+
+如果希望连续英文单词呢？多数情况下，需要我们手动切换到英文输入法，除非，您的光标后
+面有一个半角字符。在已自动切换到英文输入状态，且处在 `(|)` 情况下（`|` 为光标位置），
+连续输入 `cmp and rime` 时无须手动切换到英文输入法。
+
+采用类似的思路，`<backspace>` 键也被做了一定的修改，主要实现的功能是在删除空格时根
+据前面的字符自动切换输入法。如果前面的字符是英文，那么会将输入法切换到英文输入状态，
+如果删除空格后光标前面的字符是中文字符，那么它会将输入法切换到中文状态。
+
+## 配置
+
+默认选项：
+
+```lua
+{
+  keys = { start = ";f", stop = ";;", esc = ";j", undo = ";u" },
+  cmd = { "/sbin/rime_ls" }, -- MacOS: ~/.local/bin/rime_ls
+  rime_user_dir = "~/.local/share/rime-ls",
+  shared_data_dir = "/usr/share/rime-data", -- MacOS: /Library/Input Methods/Squirrel.app/Contents/SharedSupport
+  filetypes = { 'NO_DEFAULT_FILETYPES' },
+  single_file_support = true,
+  settings = {},
+  docs = {
+    description = [[https://www.github.com/wlh320/rime-ls, A language server for librime]],
+  },
+  max_candidates = 9,
+  trigger_characters = {},
+  schema_trigger_character = "&", -- [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
+  probes = {
+    ignore = {},
+    using = {},
+    add = {},
+  }
+  detectors = {
+    with_treesitter = {},
+    with_syntax = {},
+  },
+  cmp_keymaps = {
+    disable = {
+      space     = false,
+      numbers   = false,
+      enter     = false,
+      brackets  = false,
+      backspace = false,
+      punctuation_upload_directly = false,
+    }
+  },
+}
+```
+
+### 禁用 cmp keymaps
+
+在默认情况下，本插件会针对 nvim-cmp 设置几组 Keymaps, 这是本插件发挥作用的关键，所
+以通常不建议修改。
+
+如果确实有进一步修改按键行为的需求，可以通过 `cmp_keymaps.disable` 选择性禁用。
+
+- `space`, 空格键自动切换输入法, 以及当第一个候选字由 rime_ls 返回时上屏该候选词
+- `numbers`, 数字键直接上屏
+- `enter`, 回车键放弃补全
+- `brackets`, 以词定字
+- `backspace`, 删除键自动切换输入法
+- `punctuation_upload_directly`, 部分标点符号在候选词只有唯一对应的中文标点符号时直
+  接上屏。默认支持 `{",", ".", ":", "\\", "?", "!"}`。设置为 `true` 时，禁用此功能，也
+  可以选择禁用部分标点，如 `punctuation_upload_directly = {":", "?"}`
+
+例如, 禁用通过 `[` 和 `]` 实现的以词定字功能, 可采用如下设置 :
+
+```lua
+{
+  cmp_keymaps = {
+    disable = {
+      brackets = true
+    }
+  }
+}
+```
+
+### 设置 probes
+
+探针的作用在于根据上下文判断是否上屏 rime_ls 返回的候选词。例如，输入 `Ax` 后，
+rime_ls 会返回候选词，但因为探针 `probe_caps_start` 的存在，此时按空格不会上屏
+rime_ls 的候选词。默认开启的探针包括如下几个：
+
+- `probe_temporarily_disabled`: 是否临时禁用 `rime_ls`
+- `probe_caps_start`: 开头是否为大写字母
+- `probe_punctuation_after_half_symbol`: 是否在英文字符后面输入标点符号
+- `probe_in_mathblock`: 是否正在输入公式
+
+可以通过 `probes.ignore` 禁用部分探针，或者使用 `probes.add` 覆盖旧探针或增加新探针。
+`probes.ignore` 接受探针名构成的列表，如 `{"probe_in_mathblock", "probe_caps_start"}`
+`probes.add` 接受探针名和探针构成的 Table, 如
+
+```lua
+{
+  probe_in_mathblock = function()
+    local info = vim.inspect_pos()
+    for _, syn in ipairs(info.syntax) do
+      if syn.hl_group_link:match "mathblock" then
+        return true
+      end
+    end
+    for _, ts in ipairs(info.treesitter) do
+      if ts.capture == "markup.math" then
+        return true
+      end
+    end
+    return false
+  end
+}
+```
+
+### 设置 detectors
+
+`detector` 接受一个函数，用于判断光标是否处在英文输入环境，比如数学公式中。函数可以
+基于 treesitter 或 syntax 判断，需要返回布尔值。可以参考下面的设置。
+
+```lua
+local detector_for_norg = function(info)
+  info = info or vim.inspect_pos()
+  local trees = info.treesitter
+  local extmarks = info.extmarks
+  local englist_env = false
+  for _, ts in ipairs(trees) do
+    if
+      ts.capture == "neorg.markup.variable"
+      or ts.capture == "neorg.markup.verbatim"
+      or ts.capture == "neorg.markup.inline_math"
+    then
+      return true
+    elseif ts.capture == "comment" then
+      return false
+    end
+  end
+  for _, ext in ipairs(extmarks) do
+    if
+      ext.opts
+      and ext.opts.hl_group == "@neorg.tags.ranged_verbatim.code_block"
+    then
+      return true
+    end
+  end
+  return englist_env
+end
+
+{
+  "liubianshi/cmp-lsp-rimels",
+  keys = {{"<localleader>f", mode = "i"}},
+  config = function()
+    vim.system({'rime_ls', '--listen', '127.0.0.1:9257'}, {detach = true})
+    require('rimels').setup({
+      cmd = vim.lsp.rpc.connect("127.0.0.1", 9257),
+      detectors = {
+        with_treesitter = {
+          norg = detector_for_norg,
+        },
+      },
+    })
+  end,
+}
+```
+
+<!-- Links -->
+[1]: https://github.com/hrsh7th/nvim-cmp
+[2]: https://github.com/wlh320/rime-ls
+[3]: https://github.com/DogLooksGood/emacs-rime
+[4]: https://github.com/wlh320/rime-ls/issues/10#issuecomment-1627661945
+[5]: https://github.com/wlh320/rime-ls/issues/20
+[6]: https://github.com/hrsh7th/cmp-nvim-lsp
+[7]: https://github.com/neovim/nvim-lspconfig
+[8]: https://github.com/liubianshi/cmp-lsp-rimels/issues/1
+[9]: https://github.com/Saghen/blink.cmp
+</file>
+
+<file path="lua/rimels/init.lua">
+--- Rimels plugin main module
+--- Provides setup and configuration for the rime input method integration
+local utils = require "rimels.utils"
+local has_setup = false
+local M = {}
+
+--- Setup the rimels plugin with provided options
+--- @param opts table|nil Configuration options for the plugin
+--- @return table The module table for method chaining
+function M.setup(opts)
+  -- Prevent multiple setup calls
+  if has_setup then
+    return M
+  end
+  has_setup = true
+
+  -- Merge user options with defaults
+  opts = require("rimels.config").update_option(opts or {})
+
+  -- Initialize rime language server
+  utils.rime_ls_setup(opts)
+
+  -- Setup input method toggle keymap
+  vim.keymap.set({ "i" }, opts.keys.start, utils.start_rime_ls, {
+    silent = true,
+    noremap = true,
+    desc = "Toggle Input Method",
+  })
+
+  -- Initialize and configure completion keymaps
+  M.keymaps = require("rimels.cmp_keymaps")
+    :setup({
+      probes = opts.probes.using,
+      detectors = opts.detectors,
+    })
+    :launch(opts.cmp_keymaps.disable)
+
+  -- Store configuration for later access
+  M.opts = opts
+
+  -- Autocmd to enhance Blink completion behavior for numbers and punctuation with Rime
+  -- - When Blink shows completion (User BlinkCmpShow), if the last typed character is a number (1-9)
+  --   or a configured punctuation, perform a specific action using Rime utilities.
+  -- - Adds defensive checks and minimizes redundant lookups for clarity and robustness.
+
+  local api = vim.api
+
+  -- Create or reuse augroup once
+  local group = api.nvim_create_augroup("blink.lsp.rimels", { clear = true })
+
+  api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "BlinkCmpShow",
+    callback = vim.schedule_wrap(function(event)
+      local bufnr = (event and event.buf) or api.nvim_get_current_buf()
+      if
+        not utils.global_rime_enabled() or not utils.buf_rime_enabled(bufnr)
+      then
+        return
+      end
+
+      -- Extract completion context safely
+      local ctx = vim.tbl_get(event or {}, "data", "context")
+      if type(ctx) ~= "table" then
+        return
+      end
+      local line = ctx.line
+      local cursor = ctx.cursor
+      if type(line) ~= "string" or type(cursor) ~= "table" then
+        return
+      end
+
+      -- Get character at the cursor column (guard indices)
+      local col = tonumber(cursor[2])
+      if not col or col < 1 or col > #line then
+        return
+      end
+      local ch = line:sub(col, col)
+      if ch == "" then
+        return
+      end
+
+      -- Determine trigger type: number (1-9) or configured punctuation
+      local punctuation_list = (opts and opts.punctuation_upload_directly) or {}
+      local is_punctuation = vim.tbl_contains(punctuation_list, ch)
+      local is_number = not is_punctuation and (ch:match "[1-9]" ~= nil)
+
+      if not (is_number or is_punctuation) then
+        return
+      end
+
+      -- Retrieve Blink completion items safely
+      local ok, cmp = pcall(require, "blink.cmp")
+      if not ok or type(cmp.get_items) ~= "function" then
+        return
+      end
+      local items = cmp.get_items()
+      if type(items) ~= "table" or #items == 0 then
+        return
+      end
+
+      -- Execute corresponding action
+      vim.schedule(function()
+        if is_number then
+          local rime_id = utils.get_rime_entry_ids(items, { only = true })
+          if rime_id then
+            utils.cmp_select_nth(rime_id, items)
+          end
+        else -- punctuation
+          -- Note: function name kept as in original (cmp_confirm_punction)
+          utils.cmp_confirm_punction(items)
+        end
+      end)
+    end),
+  })
+
+  -- Autocmd to synchronize Rime input method status when entering a buffer
+  api.nvim_create_autocmd({ "BufEnter" }, {
+    group = group,
+    callback = function(event)
+      -- Extract buffer number from event, return early if invalid
+      local bufnr = event and event.buf
+      if not bufnr then
+        return
+      end
+
+      -- Ignore special buffers where Rime is not needed
+      local buftype = api.nvim_get_option_value("buftype", { buf = bufnr })
+      if buftype ~= "" then
+        return
+      end
+
+      -- Check global and buffer-specific Rime enabled statuses
+      local rime_status_global = utils.global_rime_enabled()
+      local rime_status_buf = utils.buf_rime_enabled(bufnr)
+
+      -- Toggle Rime if there's a mismatch between global and buffer statuses
+      if rime_status_buf ~= rime_status_global then
+        utils.toggle_rime()
+      end
+    end,
+  })
+
+  return M
+end
+
+--- Public API Functions ---
+
+--- Get the rime_ls LSP client if available
+--- @return table|nil The rime_ls client or nil if not found
+function M.get_rime_ls_client()
+  local clients = vim.lsp.get_clients { name = "rime_ls" }
+  return clients[1] -- Return first client or nil if none found
+end
+
+return M
+</file>
+
+<file path="lua/rimels/cmp_keymaps.lua">
+local utils = require "rimels.utils"
+
+local M = { keymaps = utils.get_mappings() }
+
+---@class Keymap_setup_opts
+---@field detectors table
+---@field probes table
+---@param opts Keymap_setup_opts
+function M:setup(opts)
+  function self.passed_all_probes(probes_ignored)
+    if probes_ignored and probes_ignored == "all" then
+      return true
+    end
+    probes_ignored = probes_ignored or {}
+    for name, probe in pairs(opts.probes) do
+      if not vim.tbl_contains(probes_ignored, name) and probe() then
+        return false
+      end
+    end
+    return true
+  end
+
+  function self.in_english_environment()
+    local detect_english_env = opts.detectors
+    local info = vim.inspect_pos()
+    local filetype =
+      vim.api.nvim_get_option_value("filetype", { scope = "local" })
+
+    if not filetype or filetype == "" then
+      return false
+    end
+
+    if
+      detect_english_env.with_treesitter[filetype]
+      and detect_english_env.with_treesitter[filetype](info)
+    then
+      return true
+    end
+
+    if
+      detect_english_env.with_syntax[filetype]
+      and detect_english_env.with_syntax[filetype](info)
+    then
+      return true
+    end
+
+    return false
+  end
+
+  return self
+end
+
+function M.autotoggle_backspace()
+  local rc = { not_toggle = 0, toggle_off = 1, toggle_on = 2 }
+  if not utils.buf_rime_enabled() or M.in_english_environment() then
+    return rc.NOT_TOGGLE
+  end
+
+  -- 只有在删除空格时才启用输入法切换功能
+  local word_before_1 = utils.get_chars_before_cursor(1)
+  if not word_before_1 or word_before_1 ~= " " then
+    return rc.not_toggle
+  end
+
+  -- 删除连续空格或行首空格时不启动输入法切换功能
+  local word_before_2 = utils.get_chars_before_cursor(2)
+  if not word_before_2 or word_before_2 == " " then
+    return rc.not_toggle
+  end
+
+  -- 删除的空格前是一个空格分隔的 WORD ，或者处在英文输入环境下时，
+  -- 切换成英文输入法
+  -- 否则切换成中文输入法
+  if utils.is_typing_english(1) then
+    if utils.global_rime_enabled() then
+      utils.toggle_rime()
+    end
+    return rc.toggle_off
+  else
+    if not utils.global_rime_enabled() then
+      utils.toggle_rime()
+    end
+    return rc.toggle_on
+  end
+end
+
+function M.autotoggle_space()
+  if not utils.buf_rime_enabled() then
+    return
+  end
+  local rc = { not_toggle = 0, toggle_off = 1, toggle_on = 2 }
+  if not utils.buf_rime_enabled() or M.in_english_environment() then
+    return rc.not_toggle
+  end
+
+  -- 行首输入空格或输入连续空格时不考虑输入法切换
+  local word_before = utils.get_chars_before_cursor(1)
+  if not word_before or word_before == " " then
+    return rc.not_toggle
+  end
+
+  -- 在英文输入状态下，如果光标后为英文符号，则不切换成中文输入状态
+  -- 例如：(abc|)
+  local char_after = utils.get_chars_after_cursor(1)
+  if not utils.global_rime_enabled() and char_after:match "[!-~]" then
+    return rc.not_toggle
+  end
+
+  -- 最后一个字符为英文字符，数字或标点符号时，切换为中文输入法
+  -- 否则切换为英文输入法
+  if word_before:match "[%w%p]" then
+    if not utils.global_rime_enabled() then
+      utils.toggle_rime()
+    end
+    return rc.toggle_on
+  else
+    if utils.global_rime_enabled() then
+      utils.toggle_rime()
+    end
+    return rc.toggle_off
+  end
+end
+
+function M.input_method_take_effect(entry, probes_ignored)
+  if not entry then
+    return false
+  end
+
+  if not M.passed_all_probes then
+    vim.notify(
+      "Need rume require('rime.cmp_keympas').set_probes() fisrt",
+      vim.log.levels.ERROR
+    )
+  end
+  if utils.is_rime_entry(entry) and M.passed_all_probes(probes_ignored) then
+    return true
+  else
+    return false
+  end
+end
+
+-- number --------------------------------------------------------------- {{{3
+for numkey = 1, 9 do
+  local numkey_str = tostring(numkey)
+  M.keymaps[numkey_str] = utils.generate_mapping(function(fallback)
+    if not utils.buf_rime_enabled() then
+      return utils.fallback(fallback)
+    end
+    if not utils.is_cmp_visible() then
+      if utils.global_rime_enabled() then
+        utils.toggle_rime(utils.buf_get_rime_ls_client(), true)
+      end
+      return utils.fallback(fallback)
+    end
+    utils.feedkey(numkey_str, "n")
+    return utils.cmp_without_processing()
+  end)
+end
+
+-- <Space> -------------------------------------------------------------- {{{3
+M.keymaps["<Space>"] = utils.generate_mapping(function(fallback)
+  pcall(vim.api.nvim_buf_del_var, 0, "rimels_last_entry")
+  if not utils.is_cmp_visible() then
+    M.autotoggle_space()
+    return utils.fallback(fallback)
+  end
+  local select_entry = utils.get_selected_entry()
+  local first_entry = utils.get_first_entry()
+
+  if select_entry then
+    if utils.is_rime_entry(select_entry) then
+      utils.cmp_confirm(false)
+    else
+      M.autotoggle_space()
+      return utils.fallback(fallback)
+    end
+  end
+
+  if M.input_method_take_effect(first_entry) then
+    local new_result = utils.adjust_for_rimels(first_entry)
+    if new_result then
+      first_entry.label = new_result
+      first_entry.textEdit.newText = new_result
+    end
+    utils.set_last_entry(first_entry)
+    return utils.cmp_confirm(true)
+  end
+
+  M.autotoggle_space()
+  return utils.fallback(fallback)
+end)
+
+-- <CR> ----------------------------------------------------------------- {{{3
+M.keymaps["<CR>"] = utils.generate_mapping(function(fallback)
+  if not utils.is_cmp_visible() then
+    return utils.fallback(fallback)
+  end
+
+  local select_entry = utils.get_selected_entry()
+  local first_entry = utils.get_first_entry()
+  local entry = select_entry or first_entry
+
+  if not entry then
+    return utils.fallback(fallback)
+  end
+
+  if M.input_method_take_effect(entry, "all") then
+    if M.in_english_environment() then
+      utils.toggle_rime()
+    end
+    utils.cmp_close()
+    utils.feedkey(" ", "n")
+  elseif
+    select_entry
+    and utils.get_cmp_source_name(select_entry) ~= "nvim_lsp_signature_help"
+  then
+    return utils.cmp_confirm(true)
+  else
+    return utils.cmp_close()
+  end
+
+  return utils.cmp_without_processing()
+end)
+
+-- [: 实现 rime 选词定字，选中词的第一个字 ------------------------------ {{{3
+M.keymaps["["] = utils.generate_mapping(function(fallback)
+  if not utils.is_cmp_visible() then
+    return utils.fallback(fallback)
+  end
+
+  local select_entry = utils.get_selected_entry()
+  local first_entry = utils.get_first_entry()
+  local entry = select_entry or first_entry
+
+  if not entry then
+    return utils.fallback(fallback)
+  end
+
+  if M.input_method_take_effect(entry) then
+    local text = utils.get_cmp_result(entry)
+    text = vim.fn.split(text, "\\zs")[1]
+    utils.cmp_close()
+    vim.schedule(function()
+      local input =
+        utils.get_input_code(entry):gsub("[^\1-\127]*([\1-\127]+)$", "%1")
+      vim.api.nvim_put({ text }, "c", true, true)
+      utils.feedkey("<left>", "n")
+      for _ = 1, input:len() do
+        utils.feedkey("<bs>", "n")
+      end
+      utils.feedkey("<right>", "n")
+    end)
+  else
+    return utils.fallback(fallback)
+  end
+
+  return utils.cmp_without_processing()
+end)
+
+-- ]: 实现 rime 选词定字，选中词的最后一个字 ------------------------------ {{{3
+M.keymaps["]"] = utils.generate_mapping(function(fallback)
+  if not utils.is_cmp_visible() then
+    return utils.fallback(fallback)
+  end
+
+  local select_entry = utils.get_selected_entry()
+  local first_entry = utils.get_first_entry()
+  local entry = select_entry or first_entry
+
+  if not entry then
+    return utils.fallback(fallback)
+  end
+
+  if M.input_method_take_effect(entry) then
+    local text = utils.get_cmp_result(entry)
+    text = vim.fn.split(text, "\\zs")
+    text = text[#text]
+    utils.cmp_close()
+
+    vim.schedule(function()
+      local input =
+        utils.get_input_code(entry):gsub("[^\1-\127]*([\1-\127]+)$", "%1")
+      vim.api.nvim_put({ text }, "c", true, true)
+      utils.feedkey("<left>", "n")
+      for _ = 1, input:len() do
+        utils.feedkey("<bs>", "n")
+      end
+      utils.feedkey("<right>", "n")
+    end)
+  else
+    return utils.fallback(fallback)
+  end
+
+  return utils.cmp_without_processing()
+end)
+
+-- <bs> ----------------------------------------------------------------- {{{3
+M.keymaps["<BS>"] = utils.generate_mapping(function(fallback)
+  if not utils.is_cmp_visible() then
+    local re = M.autotoggle_backspace()
+    if re == 1 then
+      utils.cmp_close()
+      utils.feedkey("<left>", "n")
+    else
+      return utils.fallback(fallback)
+    end
+  else
+    return utils.fallback(fallback)
+  end
+
+  return utils.cmp_without_processing()
+end)
+
+function M:launch(disable)
+  local mappings = utils.filter_cmp_keymaps(self.keymaps, disable or {})
+  if not next(mappings) then
+    return
+  end
+
+  if not next(mappings) then
+    return
+  end
+
+  vim.api.nvim_create_autocmd("InsertEnter", {
+    callback = function()
+      if not require("blink.cmp.config").enabled() then
+        return
+      end
+      utils.blink_apply_keymap(mappings)
+    end,
+  })
+
+  if
+    vim.api.nvim_get_mode().mode == "i"
+    and require("blink.cmp.config").enabled()
+  then
+    utils.blink_apply_keymap(mappings)
+  end
+
+  return mappings
+end
+
+
+return M
+</file>
+
+<file path="lua/rimels/utils.lua">
+local M = {}
+
+local has_nvim_0_10_2 = vim.fn.has "nvim-0.10.2" == 1
+local has_nvim_0_11 = vim.fn.has "nvim-0.11.0" == 1
+
+local global_rime_status = "nvim_rime#global_rime_enabled"
+local buffer_rime_status = "buf_rime_enabled"
+
+-- Cached modules and values for performance
+local blink_cmp
+
+---@return table
+local function get_blink_cmp()
+  if blink_cmp == nil then
+    blink_cmp = require "blink.cmp"
+  end
+  return blink_cmp
+end
+
+function M.adjust_for_rimels(entry)
+  local input_code = M.get_input_code(entry)
+  local cmp_result = M.get_cmp_result(entry)
+  -- 临时解决 * 和 [ 被错误吃掉的问题，会跟随 rime-ls 的更新调整
+  local special_symbol_pattern = "[%[%]{}]"
+  local other_symbol_pattern = "[^%[%]{}]"
+  if input_code:match(special_symbol_pattern .. "[A-Za-z]") then
+    local pattern =
+      string.format("^.*(%s)%s+$", special_symbol_pattern, other_symbol_pattern)
+    local prefix = input_code:gsub(pattern, "%1")
+    if
+      prefix:sub(1, 1) == prefix:sub(2, 2)
+      and prefix:sub(1, 1):match(special_symbol_pattern)
+    then
+      prefix = prefix:sub(2)
+    end
+    return prefix .. cmp_result
+  end
+end
+
+--- Apply blink.cmp keymaps to the current buffer
+---
+--- This function sets up insert mode keymaps for blink.cmp completion commands.
+--- It avoids duplicate application by checking existing mappings and handles
+--- various command types including fallback, user functions, and built-in commands.
+---
+--- @param keys_to_commands table A table mapping keys to arrays of commands
+function M.blink_apply_keymap(keys_to_commands)
+  -- Early return if keymaps already applied to avoid duplicate mappings
+  local existing_mappings = vim.api.nvim_buf_get_keymap(0, "i")
+  for _, mapping in ipairs(existing_mappings) do
+    if mapping.desc == "blink.cmp.rimels" then
+      return
+    end
+  end
+
+  -- Get blink.cmp instance once and cache it
+  local blink = get_blink_cmp()
+
+  -- Cache required modules to reduce repeated require() calls
+  local blink_config = require "blink.cmp.config"
+  local fallback_module = require "blink.cmp.keymap.fallback"
+
+  -- Apply keymaps for each key-command combination
+  for key, commands in pairs(keys_to_commands) do
+    -- Skip keys with no commands to avoid unnecessary mappings
+    if #commands > 0 then
+      -- Create fallback handler for this specific key
+      local fallback = fallback_module.wrap("i", key)
+
+      -- Set up the keymap with optimized callback
+      vim.api.nvim_buf_set_keymap(0, "i", key, "", {
+        callback = function()
+          -- Check if blink.cmp is currently enabled
+          if not blink_config.enabled() then
+            return fallback()
+          end
+
+          -- Execute commands in sequence until one succeeds
+          for _, command in ipairs(commands) do
+            if command == "fallback" then
+              -- Handle special fallback command
+              return fallback()
+            elseif type(command) == "function" then
+              -- Execute user-defined function with blink instance
+              if command(blink) then
+                return
+              end
+            elseif blink[command] and blink[command]() then
+              -- Execute built-in blink command if it exists and succeeds
+              return
+            end
+          end
+        end,
+        expr = true,
+        silent = true,
+        noremap = true,
+        replace_keycodes = false,
+        desc = "blink.cmp.rimels",
+      })
+    end
+  end
+end
+
+function M.buf_attach_rime_ls(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  if M.buf_get_rime_ls_client(bufnr) then
+    return
+  end
+
+  local rimels_clients = vim.lsp.get_clients { name = "rime_ls" }
+  if #rimels_clients > 0 then
+    local client = rimels_clients[1]
+    vim.lsp.buf_attach_client(bufnr, client.id)
+    return
+  end
+
+  M.launch_rime_ls()
+end
+
+function M.buf_get_rime_ls_client(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local buffer_rimels_clients =
+    vim.lsp.get_clients { bufnr = bufnr, name = "rime_ls" }
+  if #buffer_rimels_clients > 0 then
+    return buffer_rimels_clients[1]
+  end
+  return nil
+end
+
+function M.buf_rime_enabled(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local exist, status =
+    pcall(vim.api.nvim_buf_get_var, bufnr, buffer_rime_status)
+  return (exist and status)
+end
+
+function M.buf_toggle_rime(bufnr, buf_only)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  if M.buf_rime_enabled(bufnr) ~= M.global_rime_enabled() or buf_only then
+    vim.api.nvim_buf_set_var(
+      bufnr,
+      buffer_rime_status,
+      not M.buf_rime_enabled(bufnr)
+    )
+    return
+  end
+
+  local client = M.buf_get_rime_ls_client(bufnr)
+  if not client then
+    M.buf_attach_rime_ls(bufnr)
+    client = M.buf_get_rime_ls_client(bufnr)
+  end
+  if not client then
+    vim.notify("Failed to get rime_ls client", vim.log.levels.ERROR)
+    return
+  end
+
+  M.toggle_rime(client)
+  M.buf_toggle_rime(bufnr, true)
+end
+
+function M.cmp_close()
+  local blink = get_blink_cmp()
+  if blink and blink.is_visible() then
+    blink.hide()
+  end
+end
+
+function M.cmp_confirm(select)
+  local blink = get_blink_cmp()
+
+  select = select ~= false
+  if select then
+    return blink.select_and_accept()
+  else
+    return blink.accept()
+  end
+end
+
+function M.cmp_confirm_punction(entries)
+  local rime_id = M.get_rime_entry_ids(entries, { only = true })
+  if not rime_id then
+    return
+  end
+
+  -- check character before the punctuation
+  local word_before = M.get_chars_before_cursor(2)
+  if not word_before or word_before == "" then
+    M.cmp_close()
+  elseif not word_before:match "[%s%w%p]" then
+    M.set_last_entry(entries[rime_id])
+    M.cmp_select_nth(rime_id)
+  end
+end
+
+function M.cmp_without_processing()
+  return true
+end
+
+function M.cmp_select_nth(n, entries)
+  local blink = get_blink_cmp()
+
+  entries = entries or blink.get_items() or {}
+  vim.b.rimels_last_entry = entries[n]
+  blink.accept { index = n }
+end
+
+function M.create_autocmd_toggle_rime_according_buffer_status(client)
+  -- Close rime_ls when opening a new window
+  local rime_group =
+    vim.api.nvim_create_augroup("RimeAutoToggle", { clear = true })
+  vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter", "BufRead" }, {
+    pattern = "*",
+    group = rime_group,
+    callback = function(ev)
+      local bufnr = ev.buf
+      if not M.buf_get_rime_ls_client(bufnr) then
+        return
+      end
+      local buf_rime_enabled = M.buf_rime_enabled(bufnr)
+      local global_rime_enabled = M.global_rime_enabled()
+      if buf_rime_enabled ~= global_rime_enabled then
+        M.toggle_rime(client)
+      end
+    end,
+    desc = "Start or stop rime_ls according current buffer",
+  })
+end
+
+function M.create_command_rime_sync()
+  vim.api.nvim_create_user_command("RimeSync", function()
+    local client = M.buf_get_rime_ls_client()
+    if client and client.exec_cmd then -- Neovim ≥ 0.10
+      client:exec_cmd {
+        title = "Sync Rime user data",
+        command = "rime-ls.sync-user-data",
+      }
+    elseif client then -- 旧版兼容
+      ---@diagnostic disable-next-line: deprecated
+      vim.lsp.buf.execute_command {
+        command = "rime-ls.sync-user-data",
+      }
+    end
+  end, { nargs = 0 })
+end
+
+function M.create_command_toggle_rime(client)
+  vim.api.nvim_create_user_command("ToggleRime", function(opt)
+    local bufnr = vim.api.nvim_get_current_buf()
+    local args = opt.args
+    if
+      (not args or args == "")
+      or (args == "on" and not M.global_rime_enabled())
+      or (args == "off" and M.global_rime_enabled())
+    then
+      M.toggle_rime(client)
+    elseif args == "start" and not M.global_rime_enabled() then
+      M.toggle_rime(client)
+    end
+    M.buf_toggle_rime(bufnr, true)
+  end, { nargs = "?", desc = "Toggle Rime" })
+end
+
+function M.create_inoremap_esc(key)
+  vim.keymap.set(
+    "i",
+    key,
+    "<cmd>stopinsert<cr>",
+    { desc = "Stop insert", noremap = true, buffer = true }
+  )
+end
+
+function M.create_inoremap_start_rime(client, key)
+  vim.keymap.set("i", key, function()
+    if not M.global_rime_enabled() then
+      M.toggle_rime(client)
+    end
+    if not M.buf_rime_enabled() then
+      M.buf_toggle_rime(0, true)
+    end
+  end, {
+    desc = "Start Chinese Input Method",
+    noremap = true,
+    buffer = true,
+  })
+end
+
+function M.create_inoremap_stop_rime(client, key)
+  vim.keymap.set("i", key, function()
+    if M.is_cmp_visible() then
+      M.cmp_close()
+    end
+    if M.global_rime_enabled() then
+      M.toggle_rime(client)
+    end
+    if M.buf_rime_enabled() then
+      M.buf_toggle_rime(0, true)
+    end
+  end, {
+    desc = "Stop Chinese Input Method",
+    noremap = true,
+    expr = true,
+    buffer = true,
+  })
+end
+
+function M.create_inoremap_undo(key)
+  local fallback = function()
+    local keys = vim.api.nvim_replace_termcodes(key, true, false, true)
+    vim.api.nvim_feedkeys(keys, "n", false)
+  end
+
+  vim.keymap.set("i", key, function()
+    -- Use vim.b for buffer-local variables for better performance and readability
+    if vim.b.rimels_last_entry == nil then
+      return fallback()
+    end
+    if M.is_cmp_visible() then
+      return fallback()
+    end
+
+    local entry = vim.b.rimels_last_entry
+    -- Guard against malformed entry
+    if
+      not entry.filterText
+      or not entry.textEdit
+      or not entry.textEdit.newText
+      or vim.fn.line "." ~= entry.textEdit.range["end"].line + 1
+    then
+      return fallback()
+    end
+
+    local text_cmp = entry.textEdit.newText
+    local text_input = entry.filterText
+    local content_before = M.get_content_before_cursor(0) or ""
+
+    -- Ensure the text before the cursor ends with the completed text
+    if not content_before:match(vim.pesc(text_cmp) .. "$") then
+      return fallback()
+    end
+
+    -- Undo the completion by deleting characters and re-inserting original input
+    local char_num = vim.fn.strchars(text_cmp)
+    M.feedkey(string.rep("<BS>", char_num), "n")
+
+    text_input = text_input:gsub(".*_", "")
+    vim.schedule(function()
+      vim.api.nvim_put({ text_input }, "c", false, true)
+    end)
+  end, { desc = "rimels: undo last completion", noremap = true, buffer = true })
+end
+
+function M.error_rime_ls_not_start_yet()
+  local status_ok, notify = pcall(require, "notify")
+  if status_ok then
+    notify("Start rime-ls with command ToggleRimeLS", "error", {
+      title = "rime-ls framework not start yet",
+    })
+  else
+    vim.fn.echoerr "Start rime-ls with command ToggleRimeLS"
+  end
+end
+
+function M.fallback(fallback_fn, lhs)
+  if type(fallback_fn) == "function" then
+    return fallback_fn()
+  end
+
+  if lhs and type(lhs) == "string" then
+    fallback_fn = require("blink.cmp.keymap.fallback").wrap("i", lhs)
+    fallback_fn = fallback_fn or function()
+      M.feedkey(lhs, "n")
+    end
+    return fallback_fn()
+  end
+end
+
+function M.feedkey(key, mode)
+  vim.api.nvim_feedkeys(
+    vim.api.nvim_replace_termcodes(key, true, true, true),
+    mode,
+    false
+  )
+end
+
+function M.generate_capabilities()
+  local blink = get_blink_cmp()
+  if not blink then
+    return {}
+  end
+
+  -- nvim-cmp supports additional completion capabilities, so broadcast that to servers
+  local capabilities = vim.lsp.protocol.make_client_capabilities()
+  capabilities = blink.get_lsp_capabilities(capabilities)
+
+  -- Fix: Offset-Encoding issue since Neovim v0.10.2 #38
+  if has_nvim_0_10_2 and not has_nvim_0_11 then
+    capabilities.general = capabilities.general or {}
+    capabilities.general.positionEncodings = { "utf-8" }
+  end
+
+  return capabilities
+end
+
+function M.generate_mapping(fun)
+  return {
+    fun,
+    "fallback",
+  }
+end
+
+function M.filter_cmp_keymaps(keymaps, disable)
+  if not keymaps then
+    return {}
+  end
+  if not disable then
+    return keymaps
+  end
+
+  if disable.space then
+    keymaps["<Space>"] = nil
+  end
+  if disable.enter then
+    keymaps["<CR>"] = nil
+  end
+  if disable.backspace then
+    keymaps["<BS>"] = nil
+  end
+  if disable.brackets then
+    keymaps["["] = nil
+    keymaps["]"] = nil
+  end
+
+  return keymaps
+end
+
+function M.get_chars_after_cursor(length)
+  length = length or 1
+  local _, col = unpack(vim.api.nvim_win_get_cursor(0))
+  local line_content = vim.api.nvim_get_current_line()
+  return line_content:sub(col + 1, col + length)
+end
+
+function M.get_chars_before_cursor(colnums_before, length)
+  length = length or 1
+  if colnums_before < length then
+    return nil
+  end
+  local content_before = M.get_content_before_cursor(colnums_before - length)
+  if not content_before then
+    return nil
+  end
+  return content_before:sub(-length, -1)
+end
+
+function M.get_cmp_result(entry)
+  return vim.tbl_get(entry, "textEdit", "newText")
+end
+
+function M.get_cmp_source_name(entry)
+  if not entry then
+    return
+  end
+  return entry.source_id
+end
+
+function M.get_content_before_cursor(shift)
+  shift = shift or 0
+  local _, col = unpack(vim.api.nvim_win_get_cursor(0))
+  if col < shift then
+    return nil
+  end
+  local line_content = vim.api.nvim_get_current_line()
+  return line_content:sub(1, col - shift)
+end
+
+function M.get_first_entry()
+  local blink = get_blink_cmp()
+  if not blink then
+    return
+  end
+  local entries = blink.get_items()
+  if entries and #entries > 0 then
+    return entries[1]
+  end
+end
+
+function M.get_input_code(entry)
+  return entry.filterText
+end
+
+function M.get_mappings()
+  local blink = get_blink_cmp()
+  if not blink then
+    return {}
+  end
+  return require("blink.cmp.keymap").get_mappings(
+    require("blink.cmp.config").keymap,
+    "default"
+  )
+end
+
+function M.get_rime_entry_ids(entries, opts)
+  opts = vim.tbl_extend("keep", opts or {}, {
+    first = false,
+    only = false,
+    number = nil,
+  })
+  if opts.number and type(opts.number) == "string" then
+    opts.number = tonumber(opts.number)
+  end
+
+  local ids = {}
+  for id, entry in ipairs(entries) do
+    if M.is_rime_entry(entry) then
+      table.insert(ids, id)
+      if opts.first then
+        break
+      end
+      if opts.only and #ids > 1 then
+        return
+      end
+      if opts.number and #ids == opts.number - 1 then
+        return id
+      end
+    end
+  end
+
+  if opts.first or opts.only then
+    return ids[1]
+  end
+  return ids
+end
+
+function M.get_selected_entry()
+  local blink = get_blink_cmp()
+  if not blink then
+    return
+  end
+  return require("blink.cmp.completion.list").get_selected_item()
+end
+
+function M.global_rime_enabled()
+  local exist, status = pcall(vim.api.nvim_get_var, global_rime_status)
+  return (exist and status)
+end
+
+function M.is_eol()
+  return (vim.fn.col "." == vim.fn.col "$")
+end
+
+function M.is_rime_entry(entry)
+  if not entry then
+    return false
+  end
+
+  local input = M.get_input_code(entry)
+  local result = M.get_cmp_result(entry)
+  local client = vim.lsp.get_client_by_id(entry.client_id)
+
+  return entry.source_id == "lsp"
+    and client
+    and client.name == "rime_ls"
+    and input ~= result
+    and input:sub(-result:len(), -1) ~= result
+end
+
+function M.is_typing_english(shift)
+  local content_before = M.get_content_before_cursor(shift)
+  if not content_before then
+    return nil
+  end
+  return content_before:match "%s[%w%p]+$"
+end
+
+function M.is_cmp_visible()
+  local blink = get_blink_cmp()
+  return blink and blink.is_visible()
+end
+
+function M.rime_ls_setup(opts)
+  local rime_on_attach = function(client, _)
+    M.create_command_toggle_rime(client)
+    M.create_command_rime_sync()
+    M.create_autocmd_toggle_rime_according_buffer_status(client)
+    M.create_inoremap_start_rime(client, opts.keys.start)
+    M.create_inoremap_stop_rime(client, opts.keys.stop)
+    M.create_inoremap_esc(opts.keys.esc)
+    M.create_inoremap_undo(opts.keys.undo)
+  end
+
+  local lsp_opts = {
+    init_options = {
+      enabled = M.global_rime_enabled(),
+      shared_data_dir = opts.shared_data_dir,
+      user_data_dir = opts.user_data_dir or opts.rime_user_dir,
+      log_dir = opts.rime_user_dir .. "/log",
+      max_candidates = opts.max_candidates,
+      long_filter_text = get_blink_cmp() and true or opts.long_filter_text,
+      trigger_characters = opts.trigger_characters,
+      schema_trigger_character = opts.schema_trigger_character,
+      always_incomplete = opts.always_incomplete,
+      paging_characters = opts.paging_characters,
+    },
+    on_attach = rime_on_attach,
+    capabilities = M.generate_capabilities(),
+  }
+
+  if not has_nvim_0_11 then
+    local lspconfigs = require "lspconfig.configs"
+    if not lspconfigs.rime_ls then
+      lspconfigs.rime_ls = {
+        default_config = {
+          name = "rime_ls",
+          cmd = opts.cmd,
+          root_dir = function() end,
+          filetypes = opts.filetypes,
+          single_file_support = opts.single_file_support,
+        },
+        settings = opts.settings,
+        docs = {
+          description = opts.docs.description,
+        },
+      }
+    end
+
+    require("lspconfig").rime_ls.setup(lsp_opts)
+  else
+    lsp_opts.name = "rime_ls"
+    lsp_opts.cmd = opts.cmd
+    vim.lsp.config("rime_ls", lsp_opts)
+  end
+end
+
+function M.launch_rime_ls()
+  if has_nvim_0_11 then
+    vim.lsp.enable "rime_ls"
+  else
+    require("lspconfig").rime_ls.launch()
+  end
+end
+
+function M.set_last_entry(entry)
+  vim.b.rimels_last_entry = entry
+end
+
+--- Function to start the Rime language server for the current buffer.
+---
+--- This function ensures a Rime LS client is attached to the buffer and enables Rime if necessary.
+--- It includes a recursive retry mechanism to handle initial attachment issues.
+---
+--- @param iters? number: Current iteration count for retries (defaults to 0).
+--- @return nil
+function M.start_rime_ls(iters)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local client = M.buf_get_rime_ls_client(bufnr)
+
+  if not client then
+    -- Attach the Rime LS client to the buffer if not already attached
+    M.buf_attach_rime_ls(bufnr)
+    -- Retry mechanism to ensure input method takes effect on first start
+    iters = iters or 0
+    if iters <= 10 then
+      vim.schedule(function()
+        M.start_rime_ls(iters + 1)
+      end)
+    end
+    return
+  end
+
+  -- Enable Rime globally if not already enabled
+  if not M.global_rime_enabled() then
+    M.toggle_rime(client)
+  end
+
+  -- Enable Rime for the buffer if not already enabled
+  if not M.buf_rime_enabled() then
+    M.buf_toggle_rime(bufnr, true)
+  end
+end
+
+--- Toggles the Rime input method status via language server command
+---
+--- This function communicates with the rime_ls language server to toggle
+--- the Rime input method state and updates the global status variable.
+---
+--- @param client table|nil The rime_ls LSP client instance. If nil, attempts to retrieve automatically
+--- @param synchronously boolean|nil If true, executes immediately; if false/nil, schedules for next event loop
+--- @return nil
+function M.toggle_rime(client, synchronously)
+  -- Retrieve client if not provided, with fallback to buffer-specific client
+  client = client or M.buf_get_rime_ls_client()
+
+  -- Validate client exists and is the correct rime_ls instance
+  if not client or client.name ~= "rime_ls" then
+    vim.notify("No valid rime_ls client available", vim.log.levels.WARN)
+    return
+  end
+
+  -- Define the toggle operation with improved error handling
+  local function execute_toggle_request()
+    client:request(
+      "workspace/executeCommand",
+      { command = "rime-ls.toggle-rime" },
+      function(err, result, ctx, _)
+        -- Handle request errors
+        if err then
+          vim.notify(
+            "Failed to toggle Rime: " .. tostring(err),
+            vim.log.levels.ERROR
+          )
+          return
+        end
+
+        -- Update global status only for the correct client and valid result
+        if ctx.client_id == client.id and result ~= nil then
+          vim.api.nvim_set_var(global_rime_status, result)
+        end
+      end
+    )
+  end
+
+  -- Execute the toggle request either synchronously or asynchronously
+  if synchronously then
+    execute_toggle_request()
+  else
+    vim.schedule(execute_toggle_request)
+  end
+end
+
+return M
+</file>
+
+</files>
