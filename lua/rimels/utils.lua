@@ -58,43 +58,37 @@ function M.blink_apply_keymap(keys_to_commands)
 
   -- Cache required modules to reduce repeated require() calls
   local blink_config = require "blink.cmp.config"
-  local fallback_module = require "blink.cmp.keymap.fallback"
 
   -- Apply keymaps for each key-command combination
   for key, commands in pairs(keys_to_commands) do
     -- Skip keys with no commands to avoid unnecessary mappings
     if #commands > 0 then
-      -- Create fallback handler for this specific key
-      local fallback = fallback_module.wrap("i", key)
-
       -- Set up the keymap with optimized callback
       vim.api.nvim_buf_set_keymap(0, "i", key, "", {
         callback = function()
           -- Check if blink.cmp is currently enabled
           if not blink_config.enabled() then
-            return fallback()
+            M.fallback(_, key)
+            return
           end
 
           -- Execute commands in sequence until one succeeds
           for _, command in ipairs(commands) do
             if command == "fallback" then
-              -- Handle special fallback command
-              return fallback()
+              M.fallback(_, key)
+              return
             elseif type(command) == "function" then
-              -- Execute user-defined function with blink instance
               if command(blink) then
                 return
               end
             elseif blink[command] and blink[command]() then
-              -- Execute built-in blink command if it exists and succeeds
               return
             end
           end
         end,
-        expr = true,
+        expr = false,
         silent = true,
         noremap = true,
-        replace_keycodes = false,
         desc = "blink.cmp.rimels",
       })
     end
@@ -370,9 +364,16 @@ function M.fallback(fallback_fn, lhs)
 
   if lhs and type(lhs) == "string" then
     fallback_fn = require("blink.cmp.keymap.fallback").wrap("i", lhs)
-    fallback_fn = fallback_fn or function()
-      M.feedkey(lhs, "n")
+    if not fallback_fn then
+      return M.feedkey(lhs, "n")
+    else
+      local keys = fallback_fn()
+      local blink_utils = require "blink.cmp.keymap.utils"
+      for _, k in ipairs(keys) do
+        blink_utils.feedkeys(k.key, k.mode)
+      end
     end
+
     return fallback_fn()
   end
 end
