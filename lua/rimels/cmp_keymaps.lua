@@ -109,7 +109,7 @@ function M.autotoggle_space()
   -- 最后一个字符为英文字符，数字或标点符号时，切换为中文输入法
   -- 否则切换为英文输入法
   if word_before:match "[%w%p]" then
-    if not utils.global_rime_enabled() then
+    if utils.global_rime_enabled() then
       utils.toggle_rime()
     end
     return rc.toggle_on
