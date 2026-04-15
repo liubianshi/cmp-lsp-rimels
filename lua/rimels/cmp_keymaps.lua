@@ -77,7 +77,7 @@ function M.autotoggle_backspace()
     end
     return rc.toggle_off
   else
-    if not utils.global_rime_enabled() then
+    if utils.global_rime_enabled() then
       utils.toggle_rime()
     end
     return rc.toggle_on
