@@ -24,22 +24,22 @@ function M:setup(opts)
     local detect_english_env = opts.detectors
     local info = vim.inspect_pos()
     local filetype =
-      vim.api.nvim_get_option_value("filetype", { scope = "local" })
+        vim.api.nvim_get_option_value("filetype", { scope = "local" })
 
     if not filetype or filetype == "" then
       return false
     end
 
     if
-      detect_english_env.with_treesitter[filetype]
-      and detect_english_env.with_treesitter[filetype](info)
+        detect_english_env.with_treesitter[filetype]
+        and detect_english_env.with_treesitter[filetype](info)
     then
       return true
     end
 
     if
-      detect_english_env.with_syntax[filetype]
-      and detect_english_env.with_syntax[filetype](info)
+        detect_english_env.with_syntax[filetype]
+        and detect_english_env.with_syntax[filetype](info)
     then
       return true
     end
@@ -53,7 +53,7 @@ end
 function M.autotoggle_backspace()
   local rc = { not_toggle = 0, toggle_off = 1, toggle_on = 2 }
   if not utils.buf_rime_enabled() or M.in_english_environment() then
-    return rc.NOT_TOGGLE
+    return rc.not_toggle
   end
 
   -- 只有在删除空格时才启用输入法切换功能
@@ -142,15 +142,15 @@ end
 -- number --------------------------------------------------------------- {{{3
 for numkey = 1, 9 do
   local numkey_str = tostring(numkey)
-  M.keymaps[numkey_str] = utils.generate_mapping(function(fallback)
+  M.keymaps[numkey_str] = utils.generate_mapping(function(_)
     if not utils.buf_rime_enabled() then
-      return utils.fallback(fallback)
+      return utils.fallback(numkey_str)
     end
     if not utils.is_cmp_visible() then
       if utils.global_rime_enabled() then
         utils.toggle_rime(utils.buf_get_rime_ls_client(), true)
       end
-      return utils.fallback(fallback)
+      return utils.fallback(numkey_str)
     end
     utils.feedkey(numkey_str, "n")
     return utils.cmp_without_processing()
@@ -158,12 +158,13 @@ for numkey = 1, 9 do
 end
 
 -- <Space> -------------------------------------------------------------- {{{3
-M.keymaps["<Space>"] = utils.generate_mapping(function(fallback)
+M.keymaps["<Space>"] = utils.generate_mapping(function(_)
   pcall(vim.api.nvim_buf_del_var, 0, "rimels_last_entry")
   if not utils.is_cmp_visible() then
     M.autotoggle_space()
-    return utils.fallback(fallback)
+    return utils.fallback("<Space>")
   end
+
   local select_entry = utils.get_selected_entry()
   local first_entry = utils.get_first_entry()
 
@@ -172,7 +173,7 @@ M.keymaps["<Space>"] = utils.generate_mapping(function(fallback)
       utils.cmp_confirm(false)
     else
       M.autotoggle_space()
-      return utils.fallback(fallback)
+      return utils.fallback("<Space>")
     end
   end
 
@@ -180,20 +181,22 @@ M.keymaps["<Space>"] = utils.generate_mapping(function(fallback)
     local new_result = utils.adjust_for_rimels(first_entry)
     if new_result then
       first_entry.label = new_result
-      first_entry.textEdit.newText = new_result
+      if first_entry and first_entry.textEdit then
+        first_entry.textEdit.newText = new_result
+      end
     end
     utils.set_last_entry(first_entry)
     return utils.cmp_confirm(true)
   end
 
   M.autotoggle_space()
-  return utils.fallback(fallback)
+  return utils.fallback("<Space>")
 end)
 
 -- <CR> ----------------------------------------------------------------- {{{3
-M.keymaps["<CR>"] = utils.generate_mapping(function(fallback)
+M.keymaps["<CR>"] = utils.generate_mapping(function(_)
   if not utils.is_cmp_visible() then
-    return utils.fallback(fallback)
+    return utils.fallback("<CR>")
   end
 
   local select_entry = utils.get_selected_entry()
@@ -201,7 +204,7 @@ M.keymaps["<CR>"] = utils.generate_mapping(function(fallback)
   local entry = select_entry or first_entry
 
   if not entry then
-    return utils.fallback(fallback)
+    return utils.fallback("<CR>")
   end
 
   if M.input_method_take_effect(entry, "all") then
@@ -211,8 +214,8 @@ M.keymaps["<CR>"] = utils.generate_mapping(function(fallback)
     utils.cmp_close()
     utils.feedkey(" ", "n")
   elseif
-    select_entry
-    and utils.get_cmp_source_name(select_entry) ~= "nvim_lsp_signature_help"
+      select_entry
+      and utils.get_cmp_source_name(select_entry) ~= "nvim_lsp_signature_help"
   then
     return utils.cmp_confirm(true)
   else
@@ -223,9 +226,9 @@ M.keymaps["<CR>"] = utils.generate_mapping(function(fallback)
 end)
 
 -- [: 实现 rime 选词定字，选中词的第一个字 ------------------------------ {{{3
-M.keymaps["["] = utils.generate_mapping(function(fallback)
+M.keymaps["["] = utils.generate_mapping(function(_)
   if not utils.is_cmp_visible() then
-    return utils.fallback(fallback)
+    return utils.fallback("[")
   end
 
   local select_entry = utils.get_selected_entry()
@@ -233,7 +236,7 @@ M.keymaps["["] = utils.generate_mapping(function(fallback)
   local entry = select_entry or first_entry
 
   if not entry then
-    return utils.fallback(fallback)
+    return utils.fallback("[")
   end
 
   if M.input_method_take_effect(entry) then
@@ -242,7 +245,7 @@ M.keymaps["["] = utils.generate_mapping(function(fallback)
     utils.cmp_close()
     vim.schedule(function()
       local input =
-        utils.get_input_code(entry):gsub("[^\1-\127]*([\1-\127]+)$", "%1")
+          utils.get_input_code(entry):gsub("[^\1-\127]*([\1-\127]+)$", "%1")
       vim.api.nvim_put({ text }, "c", true, true)
       utils.feedkey("<left>", "n")
       for _ = 1, input:len() do
@@ -251,16 +254,16 @@ M.keymaps["["] = utils.generate_mapping(function(fallback)
       utils.feedkey("<right>", "n")
     end)
   else
-    return utils.fallback(fallback)
+    return utils.fallback("[")
   end
 
   return utils.cmp_without_processing()
 end)
 
 -- ]: 实现 rime 选词定字，选中词的最后一个字 ------------------------------ {{{3
-M.keymaps["]"] = utils.generate_mapping(function(fallback)
+M.keymaps["]"] = utils.generate_mapping(function(_)
   if not utils.is_cmp_visible() then
-    return utils.fallback(fallback)
+    return utils.fallback("]")
   end
 
   local select_entry = utils.get_selected_entry()
@@ -268,7 +271,7 @@ M.keymaps["]"] = utils.generate_mapping(function(fallback)
   local entry = select_entry or first_entry
 
   if not entry then
-    return utils.fallback(fallback)
+    return utils.fallback("]")
   end
 
   if M.input_method_take_effect(entry) then
@@ -279,7 +282,7 @@ M.keymaps["]"] = utils.generate_mapping(function(fallback)
 
     vim.schedule(function()
       local input =
-        utils.get_input_code(entry):gsub("[^\1-\127]*([\1-\127]+)$", "%1")
+          utils.get_input_code(entry):gsub("[^\1-\127]*([\1-\127]+)$", "%1")
       vim.api.nvim_put({ text }, "c", true, true)
       utils.feedkey("<left>", "n")
       for _ = 1, input:len() do
@@ -288,24 +291,24 @@ M.keymaps["]"] = utils.generate_mapping(function(fallback)
       utils.feedkey("<right>", "n")
     end)
   else
-    return utils.fallback(fallback)
+    return utils.fallback("]")
   end
 
   return utils.cmp_without_processing()
 end)
 
 -- <bs> ----------------------------------------------------------------- {{{3
-M.keymaps["<BS>"] = utils.generate_mapping(function(fallback)
+M.keymaps["<BS>"] = utils.generate_mapping(function(_)
   if not utils.is_cmp_visible() then
     local re = M.autotoggle_backspace()
     if re == 1 then
       utils.cmp_close()
       utils.feedkey("<left>", "n")
     else
-      return utils.fallback(fallback)
+      return utils.fallback("<BS>")
     end
   else
-    return utils.fallback(fallback)
+    return utils.fallback("<BS>")
   end
 
   return utils.cmp_without_processing()
@@ -313,10 +316,6 @@ end)
 
 function M:launch(disable)
   local mappings = utils.filter_cmp_keymaps(self.keymaps, disable or {})
-  if not next(mappings) then
-    return
-  end
-
   if not next(mappings) then
     return
   end
@@ -331,8 +330,8 @@ function M:launch(disable)
   })
 
   if
-    vim.api.nvim_get_mode().mode == "i"
-    and require("blink.cmp.config").enabled()
+      vim.api.nvim_get_mode().mode == "i"
+      and require("blink.cmp.config").enabled()
   then
     utils.blink_apply_keymap(mappings)
   end

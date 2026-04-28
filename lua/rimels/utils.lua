@@ -47,8 +47,9 @@ end
 function M.blink_apply_keymap(keys_to_commands)
   -- Early return if keymaps already applied to avoid duplicate mappings
   local existing_mappings = vim.api.nvim_buf_get_keymap(0, "i")
+  local DESC_PREFIX = "blink.cmp: rimels"
   for _, mapping in ipairs(existing_mappings) do
-    if mapping.desc == "blink.cmp.rimels" then
+    if mapping.desc == DESC_PREFIX then
       return
     end
   end
@@ -68,14 +69,14 @@ function M.blink_apply_keymap(keys_to_commands)
         callback = function()
           -- Check if blink.cmp is currently enabled
           if not blink_config.enabled() then
-            M.fallback(_, key)
+            M.fallback(key)
             return
           end
 
           -- Execute commands in sequence until one succeeds
           for _, command in ipairs(commands) do
             if command == "fallback" then
-              M.fallback(_, key)
+              M.fallback(key)
               return
             elseif type(command) == "function" then
               if command(blink) then
@@ -89,7 +90,7 @@ function M.blink_apply_keymap(keys_to_commands)
         expr = false,
         silent = true,
         noremap = true,
-        desc = "blink.cmp.rimels",
+        desc = DESC_PREFIX,
       })
     end
   end
@@ -357,36 +358,25 @@ function M.error_rime_ls_not_start_yet()
   end
 end
 
-function M.fallback(fallback_fn, lhs)
-  if type(fallback_fn) == "function" then
-    return fallback_fn()
+function M.fallback(lhs)
+  if type(lhs) ~= "string" or lhs == "" then
+    error("rimels.utils.fallback: lhs must be a non-empty string", 2)
   end
 
-  if lhs and type(lhs) == "string" then
-    fallback_fn = require("blink.cmp.keymap.fallback").wrap("i", lhs)
-    if not fallback_fn then
-      return M.feedkey(lhs, "n")
-    end
-
-    local fallback_keys = fallback_fn(true)
-    local ok, blink_utils = pcall(require, "blink.cmp.keymap.utils")
-    local blink_feedkeys
-    if ok then
-      blink_feedkeys = blink_utils.feedkeys
-    else
-      blink_feedkeys = function(keys, mode)
-        local translated_keys = keys:find('\128') and keys or vim.keycode(keys)
-        vim.api.nvim_feedkeys(translated_keys, mode, false)
-      end
-    end
-    if not fallback_keys then
-      for _, k in ipairs(fallback_keys) do
-        blink_feedkeys(k.key, k.mode)
-      end
-    end
-
-    return fallback_fn()
+  local function feed(key, mode)
+    local translated = key:find("\128") and key or vim.keycode(key)
+    vim.api.nvim_feedkeys(translated, mode or "n", false)
   end
+
+  -- blink.cmp V1 returns a key string; V2 returns a `{ key, mode }[]` array.
+  local keys = require("blink.cmp.keymap.fallback").wrap("i", lhs)()
+  if type(keys) == "string" then
+    feed(keys)
+  elseif type(keys) == "table" then
+    for _, k in ipairs(keys) do feed(k.key, k.mode) end
+  end
+
+  return true
 end
 
 function M.feedkey(key, mode)
@@ -416,6 +406,10 @@ function M.generate_capabilities()
   return capabilities
 end
 
+-- Defensive: the trailing "fallback" guards against a mapping function
+-- returning nil/false. blink_apply_keymap walks the command list in order,
+-- so if `fun` ever forgets to `return utils.fallback(lhs)` on a path,
+-- "fallback" still consumes the key instead of silently swallowing it.
 function M.generate_mapping(fun)
   return {
     fun,
