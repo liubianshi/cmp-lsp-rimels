@@ -25,11 +25,11 @@ function M.adjust_for_rimels(entry)
   local other_symbol_pattern = "[^%[%]{}]"
   if input_code:match(special_symbol_pattern .. "[A-Za-z]") then
     local pattern =
-      string.format("^.*(%s)%s+$", special_symbol_pattern, other_symbol_pattern)
+        string.format("^.*(%s)%s+$", special_symbol_pattern, other_symbol_pattern)
     local prefix = input_code:gsub(pattern, "%1")
     if
-      prefix:sub(1, 1) == prefix:sub(2, 2)
-      and prefix:sub(1, 1):match(special_symbol_pattern)
+        prefix:sub(1, 1) == prefix:sub(2, 2)
+        and prefix:sub(1, 1):match(special_symbol_pattern)
     then
       prefix = prefix:sub(2)
     end
@@ -115,7 +115,7 @@ end
 function M.buf_get_rime_ls_client(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   local buffer_rimels_clients =
-    vim.lsp.get_clients { bufnr = bufnr, name = "rime_ls" }
+      vim.lsp.get_clients { bufnr = bufnr, name = "rime_ls" }
   if #buffer_rimels_clients > 0 then
     return buffer_rimels_clients[1]
   end
@@ -125,7 +125,7 @@ end
 function M.buf_rime_enabled(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   local exist, status =
-    pcall(vim.api.nvim_buf_get_var, bufnr, buffer_rime_status)
+      pcall(vim.api.nvim_buf_get_var, bufnr, buffer_rime_status)
   return (exist and status)
 end
 
@@ -204,7 +204,7 @@ end
 function M.create_autocmd_toggle_rime_according_buffer_status(client)
   -- Close rime_ls when opening a new window
   local rime_group =
-    vim.api.nvim_create_augroup("RimeAutoToggle", { clear = true })
+      vim.api.nvim_create_augroup("RimeAutoToggle", { clear = true })
   vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter", "BufRead" }, {
     pattern = "*",
     group = rime_group,
@@ -245,9 +245,9 @@ function M.create_command_toggle_rime(client)
     local bufnr = vim.api.nvim_get_current_buf()
     local args = opt.args
     if
-      (not args or args == "")
-      or (args == "on" and not M.global_rime_enabled())
-      or (args == "off" and M.global_rime_enabled())
+        (not args or args == "")
+        or (args == "on" and not M.global_rime_enabled())
+        or (args == "off" and M.global_rime_enabled())
     then
       M.toggle_rime(client)
     elseif args == "start" and not M.global_rime_enabled() then
@@ -318,10 +318,10 @@ function M.create_inoremap_undo(key)
     local entry = vim.b.rimels_last_entry
     -- Guard against malformed entry
     if
-      not entry.filterText
-      or not entry.textEdit
-      or not entry.textEdit.newText
-      or vim.fn.line "." ~= entry.textEdit.range["end"].line + 1
+        not entry.filterText
+        or not entry.textEdit
+        or not entry.textEdit.newText
+        or vim.fn.line "." ~= entry.textEdit.range["end"].line + 1
     then
       return fallback()
     end
@@ -366,11 +366,22 @@ function M.fallback(fallback_fn, lhs)
     fallback_fn = require("blink.cmp.keymap.fallback").wrap("i", lhs)
     if not fallback_fn then
       return M.feedkey(lhs, "n")
+    end
+
+    local fallback_keys = fallback_fn(true)
+    local ok, blink_utils = pcall(require, "blink.cmp.keymap.utils")
+    local blink_feedkeys
+    if ok then
+      blink_feedkeys = blink_utils.feedkeys
     else
-      local keys = fallback_fn()
-      local blink_utils = require "blink.cmp.keymap.utils"
-      for _, k in ipairs(keys) do
-        blink_utils.feedkeys(k.key, k.mode)
+      blink_feedkeys = function(keys, mode)
+        local translated_keys = keys:find('\128') and keys or vim.keycode(keys)
+        vim.api.nvim_feedkeys(translated_keys, mode, false)
+      end
+    end
+    if not fallback_keys then
+      for _, k in ipairs(fallback_keys) do
+        blink_feedkeys(k.key, k.mode)
       end
     end
 
@@ -562,10 +573,10 @@ function M.is_rime_entry(entry)
   local client = vim.lsp.get_client_by_id(entry.client_id)
 
   return entry.source_id == "lsp"
-    and client
-    and client.name == "rime_ls"
-    and input ~= result
-    and input:sub(-result:len(), -1) ~= result
+      and client
+      and client.name == "rime_ls"
+      and input ~= result
+      and input:sub(-result:len(), -1) ~= result
 end
 
 function M.is_typing_english(shift)
