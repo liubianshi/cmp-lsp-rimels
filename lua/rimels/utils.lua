@@ -3,6 +3,12 @@ local M = {}
 local has_nvim_0_10_2 = vim.fn.has "nvim-0.10.2" == 1
 local has_nvim_0_11 = vim.fn.has "nvim-0.11.0" == 1
 
+local RIME_LS_NAME = "rime_ls"
+
+local function rime_ls_reuse_client(client, _)
+  return client.name == RIME_LS_NAME
+end
+
 local global_rime_status = "nvim_rime#global_rime_enabled"
 local buffer_rime_status = "buf_rime_enabled"
 
@@ -110,7 +116,7 @@ function M.buf_attach_rime_ls(bufnr)
     return
   end
 
-  M.launch_rime_ls()
+  M.launch_rime_ls(bufnr)
 end
 
 function M.buf_get_rime_ls_client(bufnr)
@@ -597,6 +603,14 @@ function M.rime_ls_setup(opts)
     M.create_inoremap_undo(opts.keys.undo)
   end
 
+  local base = {
+    name = RIME_LS_NAME,
+    cmd = opts.cmd,
+    filetypes = opts.filetypes,
+    root_dir = function() end,
+    single_file_support = opts.single_file_support,
+  }
+
   local lsp_opts = {
     init_options = {
       enabled = M.global_rime_enabled(),
@@ -614,37 +628,45 @@ function M.rime_ls_setup(opts)
     capabilities = M.generate_capabilities(),
   }
 
-  if not has_nvim_0_11 then
-    local lspconfigs = require "lspconfig.configs"
-    if not lspconfigs.rime_ls then
-      lspconfigs.rime_ls = {
-        default_config = {
-          name = "rime_ls",
-          cmd = opts.cmd,
-          root_dir = function() end,
-          filetypes = opts.filetypes,
-          single_file_support = opts.single_file_support,
-        },
-        settings = opts.settings,
-        docs = {
-          description = opts.docs.description,
-        },
-      }
-    end
-
-    require("lspconfig").rime_ls.setup(lsp_opts)
-  else
-    lsp_opts.name = "rime_ls"
-    lsp_opts.cmd = opts.cmd
-    vim.lsp.config("rime_ls", lsp_opts)
+  -- Register with lspconfig so :LspInfo / :checkhealth lsp recognize rime_ls.
+  local lspconfigs = require "lspconfig.configs"
+  if not lspconfigs[RIME_LS_NAME] then
+    lspconfigs[RIME_LS_NAME] = {
+      default_config = base,
+      settings = opts.settings,
+      docs = { description = opts.docs.description },
+    }
   end
+  require("lspconfig")[RIME_LS_NAME].setup(lsp_opts)
+
+  -- Also register via the new API on 0.11+ for parity with vim.lsp.enable().
+  if has_nvim_0_11 then
+    vim.lsp.config(RIME_LS_NAME, vim.tbl_extend("force", lsp_opts, base))
+  end
+
+  -- Cache the full config so launch_rime_ls() can pass it to vim.lsp.start().
+  -- vim.lsp.start has no buftype filter, unlike vim.lsp.enable's built-in
+  -- lsp_enable_callback which skips buftype != "" buffers.
+  M._rime_ls_config = vim.tbl_extend("force", lsp_opts, base)
 end
 
-function M.launch_rime_ls()
-  if has_nvim_0_11 then
-    vim.lsp.enable "rime_ls"
-  else
-    require("lspconfig").rime_ls.launch()
+function M.launch_rime_ls(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local cfg = M._rime_ls_config
+  if not cfg then
+    M.error_rime_ls_not_start_yet()
+    return
+  end
+  -- vim.lsp.start has no buftype filter, unlike vim.lsp.enable's
+  -- lsp_enable_callback which skips buftype != "" buffers (cmdline,
+  -- telescope prompt, dressing input). reuse_client matches by name so
+  -- one TCP connection is shared across all attached buffers.
+  local client_id = vim.lsp.start(cfg, {
+    bufnr = bufnr,
+    reuse_client = rime_ls_reuse_client,
+  })
+  if client_id then
+    vim.lsp.buf_attach_client(bufnr, client_id)
   end
 end
 
