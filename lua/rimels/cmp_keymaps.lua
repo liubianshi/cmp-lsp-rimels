@@ -314,6 +314,20 @@ M.keymaps["<BS>"] = utils.generate_mapping(function(_)
   return utils.cmp_without_processing()
 end)
 
+--- Apply the configured keymaps to the current buffer right away instead of
+--- waiting for the InsertEnter autocmd — for callers that must wire a buffer
+--- whose InsertEnter has already fired (Rime started mid-insert).
+function M.apply_to_current_buffer()
+  -- config.enabled may be a plain boolean; blink core coerces the same way.
+  local enabled = require("blink.cmp.config").enabled
+  if type(enabled) == "function" then
+    enabled = enabled()
+  end
+  if enabled and next(M.keymaps) then
+    utils.blink_apply_keymap(M.keymaps)
+  end
+end
+
 function M:launch(disable)
   local mappings = utils.filter_cmp_keymaps(self.keymaps, disable or {})
   if not next(mappings) then
@@ -322,18 +336,12 @@ function M:launch(disable)
 
   vim.api.nvim_create_autocmd("InsertEnter", {
     callback = function()
-      if not require("blink.cmp.config").enabled() then
-        return
-      end
-      utils.blink_apply_keymap(mappings)
+      M.apply_to_current_buffer()
     end,
   })
 
-  if
-      vim.api.nvim_get_mode().mode == "i"
-      and require("blink.cmp.config").enabled()
-  then
-    utils.blink_apply_keymap(mappings)
+  if vim.api.nvim_get_mode().mode == "i" then
+    M.apply_to_current_buffer()
   end
 
   return mappings

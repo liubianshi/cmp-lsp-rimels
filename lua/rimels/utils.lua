@@ -273,15 +273,8 @@ function M.create_inoremap_esc(key)
   )
 end
 
-function M.create_inoremap_start_rime(client, key)
-  vim.keymap.set("i", key, function()
-    if not M.global_rime_enabled() then
-      M.toggle_rime(client)
-    end
-    if not M.buf_rime_enabled() then
-      M.buf_toggle_rime(0, true)
-    end
-  end, {
+function M.create_inoremap_start_rime(_, key)
+  vim.keymap.set("i", key, M.start_rime_ls, {
     desc = "Start Chinese Input Method",
     noremap = true,
     buffer = true,
@@ -351,6 +344,29 @@ function M.create_inoremap_undo(key)
       vim.api.nvim_put({ text_input }, "c", false, true)
     end)
   end, { desc = "rimels: undo last completion", noremap = true, buffer = true })
+end
+
+--- Make completion wiring live in the current buffer without waiting for
+--- the next InsertEnter. Both keymap layers are event-driven — rimels
+--- applies its keymaps on InsertEnter (cmp_keymaps.lua) and blink.cmp
+--- applies its own on ModeChanged n:i — so a buffer that entered insert
+--- mode before Rime was started (prompt-type buffers) misses both events
+--- and would only work after leaving and re-entering insert mode.
+function M.ensure_cmp_keymaps()
+  -- blink.cmp's is_enabled() rejects buftype=prompt buffers unless the
+  -- user's enabled() returns "force" or the buffer opts in through
+  -- vim.b.completion; starting Rime is that opt-in. An explicit
+  -- vim.b.completion = false set by the buffer's owner is respected.
+  if vim.bo.buftype == "prompt" and vim.b.completion == nil then
+    vim.b.completion = true
+  end
+
+  local blink_keymap = require "blink.cmp.keymap"
+  if blink_keymap.ensure_mappings then
+    blink_keymap.ensure_mappings()
+  end
+
+  require("rimels.cmp_keymaps").apply_to_current_buffer()
 end
 
 function M.error_rime_ls_not_start_yet()
@@ -707,6 +723,8 @@ function M.start_rime_ls(iters)
   if not M.buf_rime_enabled() then
     M.buf_toggle_rime(bufnr, true)
   end
+
+  M.ensure_cmp_keymaps()
 end
 
 --- Toggles the Rime input method status via language server command
